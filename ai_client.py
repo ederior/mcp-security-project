@@ -7,6 +7,7 @@ from typing import Any, Dict
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from google.genai import errors
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -257,8 +258,26 @@ def main() -> None:
     else:
         prompt = input("Enter your prompt: ")
 
-    asyncio.run(ask_gemini(prompt))
+    try:
+        asyncio.run(ask_gemini(prompt))
 
+    except errors.ClientError as e:
+        print("\n[Gemini API client error]")
+        print("The request reached Gemini, but it failed due to a client-side/API issue.")
+        print("Common causes: invalid API key, quota exceeded, rate limit, or bad request.")
+        print(f"Error code: {getattr(e, 'code', 'unknown')}")
+        print(f"Message: {getattr(e, 'message', str(e))}")
+        sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+    except errors.ServerError as e:
+        print("\n[Gemini API server error]")
+        print("Gemini is currently unavailable or under high demand.")
+        print("This is not an MCP server bug.")
+        print(f"Error code: {getattr(e, 'code', 'unknown')}")
+        print(f"Message: {getattr(e, 'message', str(e))}")
+        sys.exit(1)
+
+    except RuntimeError as e:
+        print("\n[Runtime error]")
+        print(str(e))
+        sys.exit(1)
