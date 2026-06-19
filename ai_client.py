@@ -219,6 +219,8 @@ async def ask_gemini(prompt: str) -> None:
             tool_name = function_call.name
             tool_args = dict(function_call.args or {})
 
+            print(f"[TOOL_CALL] {tool_name} {json.dumps(tool_args, ensure_ascii=False)}", flush=True)
+            
             print("\n[Gemini requested MCP tool]")
             print(f"tool: {tool_name}")
             print(f"args: {json.dumps(tool_args, ensure_ascii=False)}")
@@ -281,3 +283,6 @@ def main() -> None:
         print("\n[Runtime error]")
         print(str(e))
         sys.exit(1)
+
+if __name__ == "__main__":
+     main()
