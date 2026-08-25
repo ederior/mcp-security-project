@@ -1,32 +1,18 @@
-# SecureNotes MCP Server
+# SecureNotes MCP Security Project
 
-This project is a defensive cyber security lab project for testing MCP server security.
+A defensive cyber security lab project for studying security properties of
+MCP-based AI agents.
 
-## Stage A - Basic MCP Server
+The project uses only fake in-memory data and synthetic test scenarios.
 
-The server exposes several MCP tools over Streamable HTTP:
+## Requirements
 
-- health_check
-- list_notes
-- read_note
-- search_notes
-- get_user_profile
-
-The server uses only fake in-memory data.
+- Python 3.11
+- uv
 
 ## Setup
 
-Create and activate a virtual environment:
+Install the project environment:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-install depenncies:
-pip install -r requirements.txt
-RUN the server:
-python server.py
-The server runs on:
-http://127.0.0.1:8000/mcp
-Testing with MCP Inspector
-Run MCP Inspector:
-npx -y @modelcontextprotocol/inspector
+uv sync
