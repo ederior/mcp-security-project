@@ -1,7 +1,10 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+AI_CLIENT = PROJECT_ROOT / "src" / "mcp_client" / "ai_client.py"
 
 def print_help() -> None:
     print()
@@ -67,9 +70,10 @@ def main() -> None:
         print()
 
         subprocess.run(
-            [sys.executable, "ai_client.py", prompt],
+            [sys.executable, str(AI_CLIENT), prompt],
             env=env,
             text=True,
+            cwd=PROJECT_ROOT,
         )
 
         print()
