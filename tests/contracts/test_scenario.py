@@ -12,7 +12,7 @@ from contracts.scenario import (
 
 
 def make_attack_scenario(**overrides: object) -> Scenario:
-    data = {
+    data: dict[str, object] = {
         "scenario_id": "ac_pi1a_baseline",
         "attack_id": "AC-PI1a",
         "attack_name": "Hidden Instructions in a Tool Result",
@@ -56,6 +56,7 @@ def test_json_round_trip() -> None:
 
     assert restored == original
 
+
 def test_yaml_round_trip() -> None:
     original = make_attack_scenario()
 
@@ -67,6 +68,7 @@ def test_yaml_round_trip() -> None:
     restored = Scenario.model_validate(loaded)
 
     assert restored == original
+
 
 def test_valid_benign_scenario() -> None:
     scenario = Scenario(

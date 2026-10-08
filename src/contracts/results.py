@@ -28,6 +28,7 @@ class MitigationOutcome(str, Enum):
     NOT_APPLIED = "not_applied"
     NOT_APPLICABLE = "not_applicable"
 
+
 StableIdentifier = Annotated[
     str,
     Field(
@@ -63,11 +64,11 @@ class DetectionVerdict(BaseModel):
         le=1.0,
     )
 
-    evidence_ids: list[StableIdentifier] = Field(
-        default_factory=list
-    )
+    evidence_ids: list[StableIdentifier] = Field(default_factory=list)
 
     latency_ms: float = Field(ge=0.0)
+
+
 class AttackResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -76,9 +77,7 @@ class AttackResult(BaseModel):
     attack_id: StableIdentifier | None = None
     expected_success_signal: StableIdentifier | None = None
 
-    observed_signal_ids: list[StableIdentifier] = Field(
-        default_factory=list
-    )
+    observed_signal_ids: list[StableIdentifier] = Field(default_factory=list)
 
     outcome: AttackOutcome
 
@@ -87,46 +86,35 @@ class AttackResult(BaseModel):
         if self.attack_id is None:
             if self.expected_success_signal is not None:
                 raise ValueError(
-                    "expected_success_signal must be None "
-                    "when attack_id is None"
+                    "expected_success_signal must be None " "when attack_id is None"
                 )
 
             if self.observed_signal_ids:
                 raise ValueError(
-                    "observed_signal_ids must be empty "
-                    "when attack_id is None"
+                    "observed_signal_ids must be empty " "when attack_id is None"
                 )
 
             if self.outcome != AttackOutcome.NOT_APPLICABLE:
                 raise ValueError(
-                    "outcome must be 'not_applicable' "
-                    "when attack_id is None"
+                    "outcome must be 'not_applicable' " "when attack_id is None"
                 )
 
             return self
 
         if self.expected_success_signal is None:
             raise ValueError(
-                "expected_success_signal is required "
-                "when attack_id is set"
+                "expected_success_signal is required " "when attack_id is set"
             )
 
         if self.outcome == AttackOutcome.NOT_APPLICABLE:
-            raise ValueError(
-                "attack scenarios cannot have "
-                "outcome 'not_applicable'"
-            )
+            raise ValueError("attack scenarios cannot have " "outcome 'not_applicable'")
 
-        success_observed = (
-            self.expected_success_signal
-            in self.observed_signal_ids
-        )
+        success_observed = self.expected_success_signal in self.observed_signal_ids
 
         if self.outcome == AttackOutcome.SUCCEEDED:
             if not success_observed:
                 raise ValueError(
-                    "a succeeded attack must contain "
-                    "the expected success signal"
+                    "a succeeded attack must contain " "the expected success signal"
                 )
         elif success_observed:
             raise ValueError(
@@ -149,9 +137,7 @@ class RunResult(BaseModel):
     detection_outcome: DetectionOutcome | None = None
     mitigation_outcome: MitigationOutcome | None = None
 
-    detection_verdicts: list[DetectionVerdict] = Field(
-        default_factory=list
-    )
+    detection_verdicts: list[DetectionVerdict] = Field(default_factory=list)
 
     total_latency_ms: float = Field(ge=0.0)
     backend_latency_ms: float | None = Field(
@@ -174,8 +160,7 @@ class RunResult(BaseModel):
         if self.execution_status == ExecutionStatus.COMPLETED:
             if self.attack_result is None:
                 raise ValueError(
-                    "attack_result is required "
-                    "when execution_status is 'completed'"
+                    "attack_result is required " "when execution_status is 'completed'"
                 )
 
             if self.detection_outcome is None:
@@ -198,8 +183,7 @@ class RunResult(BaseModel):
 
             if self.attack_result.scenario_id != self.scenario_id:
                 raise ValueError(
-                    "attack_result scenario_id must match "
-                    "RunResult scenario_id"
+                    "attack_result scenario_id must match " "RunResult scenario_id"
                 )
             for verdict in self.detection_verdicts:
                 if verdict.scenario_id != self.scenario_id:
@@ -222,8 +206,7 @@ class RunResult(BaseModel):
                     )
 
                 any_detected = any(
-                    verdict.detected
-                    for verdict in self.detection_verdicts
+                    verdict.detected for verdict in self.detection_verdicts
                 )
 
                 if (
@@ -231,50 +214,42 @@ class RunResult(BaseModel):
                     and not any_detected
                 ):
                     raise ValueError(
-                        "detected outcome requires at least "
-                        "one detected verdict"
+                        "detected outcome requires at least " "one detected verdict"
                     )
 
                 if (
-                    self.detection_outcome
-                    == DetectionOutcome.NOT_DETECTED
+                    self.detection_outcome == DetectionOutcome.NOT_DETECTED
                     and any_detected
                 ):
                     raise ValueError(
-                        "not_detected outcome cannot contain "
-                        "a detected verdict"
+                        "not_detected outcome cannot contain " "a detected verdict"
                     )
 
             return self
 
         if self.error_reason_code is None:
             raise ValueError(
-                "error_reason_code is required for "
-                "error or inconclusive runs"
+                "error_reason_code is required for " "error or inconclusive runs"
             )
 
         if self.attack_result is not None:
             raise ValueError(
-                "attack_result must be None for "
-                "error or inconclusive runs"
+                "attack_result must be None for " "error or inconclusive runs"
             )
 
         if self.detection_outcome is not None:
             raise ValueError(
-                "detection_outcome must be None for "
-                "error or inconclusive runs"
+                "detection_outcome must be None for " "error or inconclusive runs"
             )
 
         if self.mitigation_outcome is not None:
             raise ValueError(
-                "mitigation_outcome must be None for "
-                "error or inconclusive runs"
+                "mitigation_outcome must be None for " "error or inconclusive runs"
             )
 
         if self.detection_verdicts:
             raise ValueError(
-                "detection_verdicts must be empty for "
-                "error or inconclusive runs"
+                "detection_verdicts must be empty for " "error or inconclusive runs"
             )
 
         return self

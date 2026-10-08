@@ -48,7 +48,6 @@ class ToolEvent(BaseModel):
     seed: int | None = Field(default=None, ge=0)
     repetition: int | None = Field(default=None, ge=1)
 
-
     actor_user_id: str | None = None
     victim_user_id: str | None = None
     session_owner_user_id: str | None = None
@@ -92,13 +91,13 @@ class ToolEvent(BaseModel):
     def validate_event_fields(self) -> Self:
         required_fields: dict[EventType, tuple[str, ...]] = {
             EventType.RUN_STARTED: (
-                 "actor_intent",
-                 "actor_user_id",
-                 "malicious_input_source",
-                 "defense_mode",
-                 "backend",
-                 "seed",
-                 "repetition",
+                "actor_intent",
+                "actor_user_id",
+                "malicious_input_source",
+                "defense_mode",
+                "backend",
+                "seed",
+                "repetition",
             ),
             EventType.REQUEST_RECEIVED: (
                 "actor_user_id",
@@ -134,35 +133,31 @@ class ToolEvent(BaseModel):
                 "attack_id",
                 "signal_id",
             ),
-             EventType.RUN_COMPLETED: (
-                 "execution_status",
-                 "attack_outcome",
-                 "detection_outcome",
-                 "mitigation_outcome",
-                 "latency_ms",
+            EventType.RUN_COMPLETED: (
+                "execution_status",
+                "attack_outcome",
+                "detection_outcome",
+                "mitigation_outcome",
+                "latency_ms",
             ),
         }
 
         required = required_fields.get(self.event_type, ())
 
         missing = [
-            field_name
-            for field_name in required
-            if getattr(self, field_name) is None
+            field_name for field_name in required if getattr(self, field_name) is None
         ]
 
         if missing:
             raise ValueError(
-                f"{self.event_type.value} requires fields: "
-                f"{', '.join(missing)}"
+                f"{self.event_type.value} requires fields: " f"{', '.join(missing)}"
             )
-        if (
-             self.event_type == EventType.RUN_STARTED
-              and (self.attack_id is None) != (self.attack_name is None)
-         ):
-             raise ValueError(
-                  "attack_id and attack_name must either both be set "
-                   "or both be None for run_started"
-           )
+        if self.event_type == EventType.RUN_STARTED and (self.attack_id is None) != (
+            self.attack_name is None
+        ):
+            raise ValueError(
+                "attack_id and attack_name must either both be set "
+                "or both be None for run_started"
+            )
 
         return self

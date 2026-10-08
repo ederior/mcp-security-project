@@ -1,8 +1,11 @@
 import asyncio
 import json
+from typing import Any
+
+import pytest
 
 from contracts.events import EventType
-from mcp_client.ai_client import PersistentMCPClient
+from mcp_client.persistent_client import PersistentMCPClient
 from mcp_server.events import (
     ToolEventRecorder,
     sanitize_tool_arguments,
@@ -58,7 +61,9 @@ def test_tool_events_are_sanitized() -> None:
     assert FAKE_SECRET not in serialized
 
 
-def test_sanitized_metadata_does_not_copy_secret(capsys) -> None:
+def test_sanitized_metadata_does_not_copy_secret(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     argument_metadata = sanitize_tool_arguments(
         "search_notes",
         {"query": FAKE_SECRET},
@@ -114,8 +119,8 @@ def test_persistent_client_emits_before_and_after_events() -> None:
         async def call_tool(
             self,
             tool_name: str,
-            arguments: dict,
-        ) -> dict:
+            arguments: dict[str, Any],
+        ) -> dict[str, Any]:
             return {
                 "structuredContent": {
                     "value": FAKE_SECRET,

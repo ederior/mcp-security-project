@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -16,7 +18,7 @@ from contracts.scenario import (
 )
 
 
-def base_event_data() -> dict:
+def base_event_data() -> dict[str, Any]:
     return {
         "event_type": EventType.RUN_STARTED,
         "run_id": "run_001",
@@ -32,6 +34,7 @@ def base_event_data() -> dict:
         "seed": 0,
         "repetition": 1,
     }
+
 
 def test_valid_run_started_event() -> None:
     event = ToolEvent(**base_event_data())
@@ -54,6 +57,7 @@ def test_run_started_requires_attack_id_and_name_together() -> None:
 
     with pytest.raises(ValidationError):
         ToolEvent(**data)
+
 
 def test_event_json_round_trip() -> None:
     event = ToolEvent(**base_event_data())
@@ -294,6 +298,7 @@ def test_run_completed_requires_outcomes() -> None:
             detection_outcome=DetectionOutcome.DETECTED,
             latency_ms=12.5,
         )
+
 
 def test_latency_cannot_be_negative() -> None:
     with pytest.raises(ValidationError):

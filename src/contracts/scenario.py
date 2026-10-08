@@ -33,6 +33,7 @@ class Backend(str, Enum):
     FAKE = "fake"
     GEMINI = "gemini"
 
+
 class Scenario(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -77,8 +78,7 @@ class Scenario(BaseModel):
 
             if self.malicious_input_source != MaliciousInputSource.NONE:
                 raise ValueError(
-                    "malicious_input_source must be 'none' "
-                    "when attack_id is None"
+                    "malicious_input_source must be 'none' " "when attack_id is None"
                 )
         else:
             if self.attack_name is None or self.success_signal is None:
@@ -88,20 +88,16 @@ class Scenario(BaseModel):
                 )
 
         if self.backend == Backend.GEMINI and not self.model_id:
-            raise ValueError(
-                "model_id is required for the Gemini backend"
-            )
+            raise ValueError("model_id is required for the Gemini backend")
 
         if self.defense_mode == DefenseMode.NONE:
             if self.enabled_controls:
                 raise ValueError(
-                    "enabled_controls must be empty "
-                    "when defense_mode is 'none'"
+                    "enabled_controls must be empty " "when defense_mode is 'none'"
                 )
         elif not self.enabled_controls:
             raise ValueError(
-                "enabled_controls must not be empty "
-                "when defenses are enabled"
+                "enabled_controls must not be empty " "when defenses are enabled"
             )
 
         return self

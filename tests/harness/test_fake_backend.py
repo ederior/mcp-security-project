@@ -24,9 +24,7 @@ def make_script() -> tuple[BackendResponse, ...]:
                 ),
             )
         ),
-        BackendResponse(
-            final_text="Deterministic final answer"
-        ),
+        BackendResponse(final_text="Deterministic final answer"),
     )
 
 
@@ -148,10 +146,7 @@ def test_fake_backend_is_deterministic_across_twenty_runs() -> None:
             second.tool_calls[0].name,
         )
 
-    outputs = [
-        asyncio.run(run_once())
-        for _ in range(20)
-    ]
+    outputs = [asyncio.run(run_once()) for _ in range(20)]
 
     assert len(set(outputs)) == 1
 
@@ -161,15 +156,7 @@ def test_fake_backend_script_must_end_with_final_response() -> None:
         ValueError,
         match="must end with a final response",
     ):
-        FakeBackend(
-            (
-                BackendResponse(
-                    tool_calls=(
-                        ToolCall(name="read_note"),
-                    )
-                ),
-            )
-        )
+        FakeBackend((BackendResponse(tool_calls=(ToolCall(name="read_note"),)),))
 
 
 def test_fake_backend_cannot_continue_after_final_response() -> None:

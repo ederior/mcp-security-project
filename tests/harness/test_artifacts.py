@@ -24,9 +24,7 @@ def make_smoke_backend() -> FakeBackend:
                     ),
                 )
             ),
-            BackendResponse(
-                final_text="Server is healthy"
-            ),
+            BackendResponse(final_text="Server is healthy"),
         )
     )
 
@@ -60,29 +58,20 @@ def test_write_run_artifacts(
         assert result_path.is_file()
         assert config_path.is_file()
 
-        result = RunResult.model_validate_json(
-            result_path.read_text(encoding="utf-8")
-        )
+        result = RunResult.model_validate_json(result_path.read_text(encoding="utf-8"))
 
         assert result.run_id == "smoke_artifact_run"
 
-        event_lines = events_path.read_text(
-            encoding="utf-8"
-        ).splitlines()
+        event_lines = events_path.read_text(encoding="utf-8").splitlines()
 
         assert len(event_lines) == 2
 
-        events = [
-            ToolEvent.model_validate_json(line)
-            for line in event_lines
-        ]
+        events = [ToolEvent.model_validate_json(line) for line in event_lines]
 
         assert events[0].event_index == 0
         assert events[1].event_index == 1
 
-        config = json.loads(
-            config_path.read_text(encoding="utf-8")
-        )
+        config = json.loads(config_path.read_text(encoding="utf-8"))
 
         assert config == {
             "backend": "fake",

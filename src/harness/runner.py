@@ -68,9 +68,7 @@ async def run_scenario(
     max_tool_rounds: int = 8,
 ) -> HarnessRun:
     if scenario.defense_mode != DefenseMode.NONE:
-        raise ValueError(
-            "The N2.2 smoke harness supports defense_mode='none' only"
-        )
+        raise ValueError("The N2.2 smoke harness supports defense_mode='none' only")
 
     if max_tool_rounds < 1:
         raise ValueError("max_tool_rounds must be at least 1")
@@ -89,9 +87,7 @@ async def run_scenario(
         scenario.user_prompt,
         seed=scenario.seed,
     )
-    backend_latency_ms += (
-        perf_counter() - backend_started
-    ) * 1000.0
+    backend_latency_ms += (perf_counter() - backend_started) * 1000.0
 
     tool_rounds = 0
 
@@ -99,24 +95,18 @@ async def run_scenario(
         tool_rounds += 1
 
         if tool_rounds > max_tool_rounds:
-            raise RuntimeError(
-                "Maximum number of tool rounds exceeded"
-            )
+            raise RuntimeError("Maximum number of tool rounds exceeded")
 
         tool_results: list[ToolResult] = []
 
         for tool_call in response.tool_calls:
             if tool_call.name not in scenario.allowed_tools:
-                raise RuntimeError(
-                    f"Tool is not allowed by scenario: {tool_call.name}"
-                )
+                raise RuntimeError(f"Tool is not allowed by scenario: {tool_call.name}")
 
             tool = _LOCAL_TOOLS.get(tool_call.name)
 
             if tool is None:
-                raise RuntimeError(
-                    f"Unknown local tool: {tool_call.name}"
-                )
+                raise RuntimeError(f"Unknown local tool: {tool_call.name}")
 
             recorder.record_tool_requested(
                 tool_name=tool_call.name,
@@ -128,9 +118,7 @@ async def run_scenario(
             raw_result = tool(**tool_call.arguments)
             is_error = False
 
-            tool_latency_ms = (
-                perf_counter() - tool_started
-            ) * 1000.0
+            tool_latency_ms = (perf_counter() - tool_started) * 1000.0
 
             normalized_result = {
                 "result": raw_result,
@@ -152,16 +140,10 @@ async def run_scenario(
             )
 
         backend_started = perf_counter()
-        response = await backend.continue_after_tools(
-            tool_results
-        )
-        backend_latency_ms += (
-            perf_counter() - backend_started
-        ) * 1000.0
+        response = await backend.continue_after_tools(tool_results)
+        backend_latency_ms += (perf_counter() - backend_started) * 1000.0
 
-    total_latency_ms = (
-        perf_counter() - total_started
-    ) * 1000.0
+    total_latency_ms = (perf_counter() - total_started) * 1000.0
 
     result = RunResult(
         run_id=run_id,

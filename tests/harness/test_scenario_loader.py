@@ -29,9 +29,7 @@ def test_load_smoke_scenario() -> None:
 
 def test_missing_scenario_file_is_rejected() -> None:
     with pytest.raises(FileNotFoundError):
-        load_scenario(
-            "scenarios/benign/does_not_exist.yaml"
-        )
+        load_scenario("scenarios/benign/does_not_exist.yaml")
 
 
 def test_non_mapping_yaml_is_rejected(

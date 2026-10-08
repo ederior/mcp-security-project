@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.11
+
+      - name: Sync dependencies
+        run: uv sync --locked --dev
+
+      - name: Prevent Gemini dependency in tests
+        shell: bash
+        run: |
+          if grep -RInE \
+            'google\.genai|from[[:space:]]+google|import[[:space:]]+google|GEMINI_API_KEY|ask_gemini|mcp_client\.ai_client' \
+            tests; then
+            echo "Direct Gemini dependency found in tests."
+            exit 1
+          fi
+
+      - name: Ruff
+        run: uv run --locked ruff check src tests
+
+      - name: Black
+        run: uv run --locked black --check src tests
+
+      - name: Mypy strict
+        run: uv run --locked mypy src tests
+
+      - name: Pytest
+        env:
+          GEMINI_API_KEY: ""
+        run: uv run --locked pytest

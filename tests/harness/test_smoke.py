@@ -26,22 +26,16 @@ def test_execute_smoke_creates_complete_run(
     assert result_path.is_file()
     assert config_path.is_file()
 
-    result = RunResult.model_validate_json(
-        result_path.read_text(encoding="utf-8")
-    )
+    result = RunResult.model_validate_json(result_path.read_text(encoding="utf-8"))
 
     assert result.execution_status == ExecutionStatus.COMPLETED
     assert result.scenario_id == "benign_smoke"
 
-    event_lines = events_path.read_text(
-        encoding="utf-8"
-    ).splitlines()
+    event_lines = events_path.read_text(encoding="utf-8").splitlines()
 
     assert len(event_lines) == 2
 
-    config = json.loads(
-        config_path.read_text(encoding="utf-8")
-    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
 
     assert config["backend"] == "fake"
     assert config["seed"] == 0

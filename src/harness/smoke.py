@@ -34,9 +34,7 @@ def make_smoke_backend() -> FakeBackend:
                     ),
                 )
             ),
-            BackendResponse(
-                final_text="Server is healthy"
-            ),
+            BackendResponse(final_text="Server is healthy"),
         )
     )
 
@@ -49,9 +47,7 @@ async def execute_smoke(
     scenario = load_scenario(SMOKE_SCENARIO)
 
     run_id = (
-        f"{scenario.scenario_id}"
-        f"_seed{scenario.seed}"
-        f"_rep{scenario.repetition}"
+        f"{scenario.scenario_id}" f"_seed{scenario.seed}" f"_rep{scenario.repetition}"
     )
 
     harness_run = await run_scenario(

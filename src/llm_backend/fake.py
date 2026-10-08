@@ -12,9 +12,7 @@ class FakeBackend(LLMBackend):
             raise ValueError("FakeBackend script must not be empty")
 
         if script[-1].final_text is None:
-            raise ValueError(
-                "FakeBackend script must end with a final response"
-            )
+            raise ValueError("FakeBackend script must end with a final response")
 
         if any(response.final_text is not None for response in script[:-1]):
             raise ValueError(
@@ -75,13 +73,9 @@ class FakeBackend(LLMBackend):
             raise RuntimeError("FakeBackend run has already completed")
 
         expected_names = tuple(
-            tool_call.name
-            for tool_call in current_response.tool_calls
+            tool_call.name for tool_call in current_response.tool_calls
         )
-        actual_names = tuple(
-            tool_result.name
-            for tool_result in tool_results
-        )
+        actual_names = tuple(tool_result.name for tool_result in tool_results)
 
         if actual_names != expected_names:
             raise AssertionError(

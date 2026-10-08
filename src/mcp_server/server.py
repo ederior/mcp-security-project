@@ -45,7 +45,7 @@ NOTES: dict[str, dict[str, str]] = {
         "title": "Admin Note",
         "content": "This is fake admin data for lab testing only.",
     },
-        "note_4": {
+    "note_4": {
         "note_id": "note_4",
         "owner_id": "user_1",
         "title": "External Security Report",
@@ -72,11 +72,13 @@ def audit_log(action: str, details: str) -> None:
         fingerprint(details),
     )
 
+
 def validate_text(value: str, max_len: int = 100) -> bool:
     if not isinstance(value, str):
         return False
 
     return len(value) <= max_len
+
 
 @mcp.tool()
 def health_check() -> dict[str, str]:
@@ -102,11 +104,13 @@ def list_notes(user_id: str) -> list[dict[str, str]]:
 
     for note in NOTES.values():
         if note["owner_id"] == user_id:
-            result.append({
-                "note_id": note["note_id"],
-                "title": note["title"],
-                "owner_id": note["owner_id"],
-            })
+            result.append(
+                {
+                    "note_id": note["note_id"],
+                    "title": note["title"],
+                    "owner_id": note["owner_id"],
+                }
+            )
 
     return result
 
@@ -143,11 +147,13 @@ def search_notes(query: str) -> list[dict[str, str]]:
         content = note["content"].lower()
 
         if query_lower in title or query_lower in content:
-            result.append({
-                "note_id": note["note_id"],
-                "title": note["title"],
-                "owner_id": note["owner_id"],
-            })
+            result.append(
+                {
+                    "note_id": note["note_id"],
+                    "title": note["title"],
+                    "owner_id": note["owner_id"],
+                }
+            )
 
     return result
 

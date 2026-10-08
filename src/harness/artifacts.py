@@ -19,10 +19,7 @@ def write_run_artifacts(
     result_path = run_dir / "result.json"
     config_path = run_dir / "config.json"
 
-    events_jsonl = "\n".join(
-        event.model_dump_json()
-        for event in harness_run.events
-    )
+    events_jsonl = "\n".join(event.model_dump_json() for event in harness_run.events)
 
     if events_jsonl:
         events_jsonl += "\n"

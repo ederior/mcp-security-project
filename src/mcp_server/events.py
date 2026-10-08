@@ -40,8 +40,7 @@ def sanitize_tool_arguments(
     target_user_id = arguments.get("user_id")
 
     if not (
-        isinstance(target_user_id, str)
-        and _SAFE_USER_ID.fullmatch(target_user_id)
+        isinstance(target_user_id, str) and _SAFE_USER_ID.fullmatch(target_user_id)
     ):
         target_user_id = None
 

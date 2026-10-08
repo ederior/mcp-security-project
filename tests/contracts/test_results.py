@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -12,7 +14,7 @@ from contracts.results import (
 )
 
 
-def valid_verdict_data() -> dict:
+def valid_verdict_data() -> dict[str, Any]:
     return {
         "detector_id": "prompt_injection_rules_v1",
         "detector_version": "v1",
@@ -106,6 +108,8 @@ def test_evidence_ids_cannot_contain_free_text() -> None:
 
     with pytest.raises(ValidationError):
         DetectionVerdict(**data)
+
+
 def test_valid_succeeded_attack_result() -> None:
     result = AttackResult(
         scenario_id="AC-PI1a",
@@ -199,6 +203,8 @@ def test_benign_result_must_be_not_applicable() -> None:
             observed_signal_ids=[],
             outcome=AttackOutcome.NOT_TRIGGERED,
         )
+
+
 def test_valid_completed_run_result() -> None:
     attack_result = AttackResult(
         scenario_id="AC-PI1a",
@@ -235,6 +241,7 @@ def test_valid_completed_run_result() -> None:
     )
 
     assert result.execution_status == ExecutionStatus.COMPLETED
+    assert result.attack_result is not None
     assert result.attack_result.outcome == AttackOutcome.BLOCKED
 
 

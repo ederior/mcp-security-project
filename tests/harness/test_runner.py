@@ -29,9 +29,7 @@ def make_smoke_backend() -> FakeBackend:
                     ),
                 )
             ),
-            BackendResponse(
-                final_text="Server is healthy"
-            ),
+            BackendResponse(final_text="Server is healthy"),
         )
     )
 
@@ -47,22 +45,11 @@ def test_smoke_scenario_completes() -> None:
             run_id="smoke_run_001",
         )
 
-        assert (
-            harness_run.result.execution_status
-            == ExecutionStatus.COMPLETED
-        )
-        assert (
-            harness_run.result.attack_result.outcome
-            == AttackOutcome.NOT_APPLICABLE
-        )
-        assert (
-            harness_run.result.detection_outcome
-            == DetectionOutcome.NOT_APPLICABLE
-        )
-        assert (
-            harness_run.result.mitigation_outcome
-            == MitigationOutcome.NOT_APPLICABLE
-        )
+        assert harness_run.result.execution_status == ExecutionStatus.COMPLETED
+        assert harness_run.result.attack_result is not None
+        assert harness_run.result.attack_result.outcome == AttackOutcome.NOT_APPLICABLE
+        assert harness_run.result.detection_outcome == DetectionOutcome.NOT_APPLICABLE
+        assert harness_run.result.mitigation_outcome == MitigationOutcome.NOT_APPLICABLE
         assert harness_run.final_text == "Server is healthy"
 
     asyncio.run(run())
@@ -112,9 +99,7 @@ def test_disallowed_tool_is_rejected() -> None:
                         ),
                     )
                 ),
-                BackendResponse(
-                    final_text="should not be reached"
-                ),
+                BackendResponse(final_text="should not be reached"),
             )
         )
 
