@@ -1,3 +1,5 @@
+import logging
+
 from mcp_server.server import (
     get_user_profile,
     health_check,
@@ -44,3 +46,15 @@ def test_get_user_profile():
     assert result["user_id"] == "user_2"
     assert result["name"] == "Bob Levi"
     assert result["role"] == "admin"
+
+
+def test_search_notes_does_not_log_raw_sensitive_query(caplog) -> None:
+    fake_secret = "FAKE_SECRET_must_not_appear_in_logs"
+
+    caplog.set_level(logging.INFO)
+
+    search_notes(fake_secret)
+
+    assert fake_secret not in caplog.text
+    assert "action=search_notes" in caplog.text
+    assert "details_fingerprint=sha256:" in caplog.text

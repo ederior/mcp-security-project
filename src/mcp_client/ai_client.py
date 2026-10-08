@@ -3,6 +3,8 @@ import json
 import os
 import sys
 from contextlib import AsyncExitStack
+from secrets import token_urlsafe
+from time import perf_counter
 from typing import Any, Self
 
 from dotenv import load_dotenv
@@ -10,6 +12,12 @@ from google import genai
 from google.genai import errors, types
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+
+from mcp_server.events import (
+    ToolEventRecorder,
+    sanitize_tool_arguments,
+    sanitize_tool_result,
+)
 
 load_dotenv()
 
@@ -158,11 +166,29 @@ def normalize_mcp_result(result: Any) -> dict[str, Any]:
     }
 
 
+
 class PersistentMCPClient:
-    def __init__(self, url: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        run_id: str | None = None,
+        scenario_id: str = "manual_demo",
+        actor_user_id: str | None = None,
+        session_owner_user_id: str | None = None,
+        session_fingerprint: str | None = None,
+    ) -> None:
         self.url = url
         self._exit_stack: AsyncExitStack | None = None
         self._session: ClientSession | None = None
+
+        self.event_recorder = ToolEventRecorder(
+            run_id=run_id or f"run_{token_urlsafe(8)}",
+            scenario_id=scenario_id,
+            actor_user_id=actor_user_id,
+            session_owner_user_id=session_owner_user_id,
+            session_fingerprint=session_fingerprint,
+        )
 
     async def __aenter__(self) -> Self:
         self._exit_stack = AsyncExitStack()
@@ -190,9 +216,29 @@ class PersistentMCPClient:
         if self._session is None:
             raise RuntimeError("PersistentMCPClient is not connected")
 
-        result = await self._session.call_tool(tool_name, arguments=args)
-        return normalize_mcp_result(result)
+        self.event_recorder.record_tool_requested(
+            tool_name=tool_name,
+            arguments=args,
+            allowed=True,
+        )
 
+        started_at = perf_counter()
+
+        result = await self._session.call_tool(
+            tool_name,
+            arguments=args,
+        )
+
+        latency_ms = (perf_counter() - started_at) * 1000.0
+        normalized_result = normalize_mcp_result(result)
+
+        self.event_recorder.record_tool_completed(
+            tool_name=tool_name,
+            result=normalized_result,
+            latency_ms=latency_ms,
+        )
+
+        return normalized_result
 
 async def call_mcp_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     """
@@ -250,22 +296,34 @@ async def ask_gemini(prompt: str) -> None:
             for function_call in response.function_calls:
                 tool_name = function_call.name
                 tool_args = dict(function_call.args or {})
-
+                argument_metadata = sanitize_tool_arguments(
+                    tool_name,
+                    tool_args,
+                )
                 print(
                     f"[TOOL_CALL] {tool_name} "
-                    f"{json.dumps(tool_args, ensure_ascii=False)}",
+                    f"{json.dumps(argument_metadata, ensure_ascii=False)}",
                     flush=True,
                 )
 
                 print("\n[Gemini requested MCP tool]")
                 print(f"tool: {tool_name}")
-                print(f"args: {json.dumps(tool_args, ensure_ascii=False)}")
-
+                print(
+                     "metadata: "
+                     f"{json.dumps(argument_metadata, ensure_ascii=False)}"
+                )
                 tool_result = await mcp_client.call_tool(tool_name, tool_args)
 
-                print("\n[MCP tool result]")
-                print(json.dumps(tool_result, indent=2, ensure_ascii=False))
+                result_metadata = sanitize_tool_result(tool_result)
 
+                print("\n[MCP tool result]")
+                print(
+                    json.dumps(
+                        result_metadata,
+                        indent=2,
+                        ensure_ascii=False,
+                     )
+                )
                 function_response_parts.append(
                     types.Part.from_function_response(
                         name=tool_name,
