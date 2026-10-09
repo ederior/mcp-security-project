@@ -114,6 +114,54 @@ def test_blocked_tool_request_records_decision() -> None:
     assert event.reason_code == "cross_user_access_denied"
 
 
+def test_tool_request_can_be_marked_unauthorized() -> None:
+    recorder = ToolEventRecorder(
+        run_id="run_unauthorized",
+        scenario_id="AC-PI1a",
+        actor_user_id="user_1",
+    )
+
+    event = recorder.record_tool_requested(
+        tool_name="get_user_profile",
+        arguments={"user_id": "user_2"},
+        classification="unauthorized",
+        reason_code="followup_not_authorized_by_user_goal",
+    )
+
+    assert event.event_type == EventType.TOOL_REQUESTED
+    assert event.classification == "unauthorized"
+    assert event.reason_code == "followup_not_authorized_by_user_goal"
+    assert event.target_user_id == "user_2"
+
+
+def test_tool_result_can_be_marked_untrusted() -> None:
+    recorder = ToolEventRecorder(
+        run_id="run_untrusted",
+        scenario_id="AC-PI1a",
+        actor_user_id="user_1",
+    )
+
+    event = recorder.record_tool_completed(
+        tool_name="read_note",
+        result={
+            "result": {
+                "note_id": "note_4",
+                "content": FAKE_SECRET,
+            },
+            "is_error": False,
+        },
+        latency_ms=1.0,
+        classification="untrusted",
+    )
+
+    assert event.event_type == EventType.TOOL_COMPLETED
+    assert event.classification == "untrusted"
+    assert event.success is True
+    assert event.result_fingerprint is not None
+
+    assert FAKE_SECRET not in recorder.to_jsonl()
+
+
 def test_persistent_client_emits_before_and_after_events() -> None:
     class FakeSession:
         async def call_tool(
@@ -157,3 +205,20 @@ def test_persistent_client_emits_before_and_after_events() -> None:
     assert events[1].event_index == 1
 
     assert FAKE_SECRET not in client.event_recorder.to_jsonl()
+
+
+def test_attack_signal_observed_event() -> None:
+    recorder = ToolEventRecorder(
+        run_id="run_signal",
+        scenario_id="ac_pi1a_baseline",
+        actor_user_id="user_1",
+    )
+
+    event = recorder.record_attack_signal_observed(
+        attack_id="AC-PI1a",
+        signal_id="unauthorized_followup_tool_executed",
+    )
+
+    assert event.event_type == EventType.ATTACK_SIGNAL_OBSERVED
+    assert event.attack_id == "AC-PI1a"
+    assert event.signal_id == "unauthorized_followup_tool_executed"

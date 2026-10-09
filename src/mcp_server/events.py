@@ -109,6 +109,7 @@ class ToolEventRecorder:
         arguments: dict[str, Any],
         allowed: bool = True,
         reason_code: str | None = None,
+        classification: str | None = None,
     ) -> ToolEvent:
         metadata = sanitize_tool_arguments(tool_name, arguments)
 
@@ -123,7 +124,11 @@ class ToolEventRecorder:
             tool_name=tool_name,
             operation=metadata["operation"],
             target_user_id=metadata["target_user_id"],
-            classification="allowed" if allowed else "blocked",
+            classification=(
+                classification
+                if classification is not None
+                else ("allowed" if allowed else "blocked")
+            ),
             reason_code=reason_code,
         )
 
@@ -136,6 +141,7 @@ class ToolEventRecorder:
         tool_name: str,
         result: dict[str, Any],
         latency_ms: float,
+        classification: str | None = None,
     ) -> ToolEvent:
         metadata = sanitize_tool_result(result)
 
@@ -149,10 +155,33 @@ class ToolEventRecorder:
             session_fingerprint=self.session_fingerprint,
             tool_name=tool_name,
             success=metadata["success"],
-            classification=metadata["classification"],
+            classification=(
+                classification
+                if classification is not None
+                else metadata["classification"]
+            ),
             content_length=metadata["content_length"],
             result_fingerprint=metadata["result_fingerprint"],
             latency_ms=latency_ms,
+        )
+
+        self._append(event)
+        return event
+
+    def record_attack_signal_observed(
+        self,
+        *,
+        attack_id: str,
+        signal_id: str,
+    ) -> ToolEvent:
+        event = ToolEvent(
+            event_type=EventType.ATTACK_SIGNAL_OBSERVED,
+            run_id=self.run_id,
+            scenario_id=self.scenario_id,
+            event_index=self._next_index,
+            actor_user_id=self.actor_user_id,
+            attack_id=attack_id,
+            signal_id=signal_id,
         )
 
         self._append(event)
