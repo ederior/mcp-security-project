@@ -102,6 +102,27 @@ class ToolEventRecorder:
         self._next_index = start_index
         self.events: list[ToolEvent] = []
 
+    def record_request_received(
+        self,
+        *,
+        request_id: str,
+        nonce_fingerprint: str,
+    ) -> ToolEvent:
+        event = ToolEvent(
+            event_type=EventType.REQUEST_RECEIVED,
+            run_id=self.run_id,
+            scenario_id=self.scenario_id,
+            event_index=self._next_index,
+            actor_user_id=self.actor_user_id,
+            session_owner_user_id=self.session_owner_user_id,
+            request_id=request_id,
+            session_fingerprint=self.session_fingerprint,
+            nonce_fingerprint=nonce_fingerprint,
+        )
+
+        self._append(event)
+        return event
+
     def record_tool_requested(
         self,
         *,

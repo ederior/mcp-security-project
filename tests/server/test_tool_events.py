@@ -11,6 +11,7 @@ from mcp_server.events import (
     sanitize_tool_arguments,
     sanitize_tool_result,
 )
+from mcp_server.session import SessionStore, SessionValidationMode
 
 FAKE_SECRET = "FAKE_SECRET_must_never_appear_in_events"
 
@@ -222,3 +223,46 @@ def test_attack_signal_observed_event() -> None:
     assert event.event_type == EventType.ATTACK_SIGNAL_OBSERVED
     assert event.attack_id == "AC-PI1a"
     assert event.signal_id == "unauthorized_followup_tool_executed"
+def test_request_received_event_uses_sanitized_session_context() -> None:
+    store = SessionStore()
+
+    session = store.create_session(
+        "user_1",
+        session_id="raw_session_1",
+    )
+
+    context = store.begin_request(
+        actor_user_id="user_2",
+        session_id=session.session_id,
+        nonce="raw_nonce_1",
+        validation_mode=SessionValidationMode.VULNERABLE,
+        request_id="request_sh1a",
+    )
+
+    assert context.accepted is True
+    assert context.user_mismatch is True
+
+    recorder = ToolEventRecorder(
+        run_id="run_sh1a",
+        scenario_id="ac_sh1a_baseline",
+        actor_user_id=context.actor_user_id,
+        session_owner_user_id=context.session_owner_user_id,
+        session_fingerprint=context.session_fingerprint,
+    )
+
+    event = recorder.record_request_received(
+        request_id=context.request_id,
+        nonce_fingerprint=context.nonce_fingerprint,
+    )
+
+    assert event.event_type == EventType.REQUEST_RECEIVED
+    assert event.actor_user_id == "user_2"
+    assert event.session_owner_user_id == "user_1"
+    assert event.request_id == "request_sh1a"
+    assert event.session_fingerprint == context.session_fingerprint
+    assert event.nonce_fingerprint == context.nonce_fingerprint
+
+    serialized = recorder.to_jsonl()
+
+    assert "raw_session_1" not in serialized
+    assert "raw_nonce_1" not in serialized
