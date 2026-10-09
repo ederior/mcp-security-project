@@ -6,6 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AI_CLIENT = PROJECT_ROOT / "src" / "mcp_client" / "ai_client.py"
 
+
 def print_help() -> None:
     print()
     print("Available commands:")
@@ -71,6 +72,7 @@ def main() -> None:
 
         subprocess.run(
             [sys.executable, str(AI_CLIENT), prompt],
+            check=False,
             env=env,
             text=True,
             cwd=PROJECT_ROOT,

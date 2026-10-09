@@ -223,6 +223,8 @@ def test_attack_signal_observed_event() -> None:
     assert event.event_type == EventType.ATTACK_SIGNAL_OBSERVED
     assert event.attack_id == "AC-PI1a"
     assert event.signal_id == "unauthorized_followup_tool_executed"
+
+
 def test_request_received_event_uses_sanitized_session_context() -> None:
     store = SessionStore()
 

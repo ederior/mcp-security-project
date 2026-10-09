@@ -1,6 +1,7 @@
+import os
+
 from dotenv import load_dotenv
 from google import genai
-import os
 
 load_dotenv()
 
@@ -13,8 +14,7 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 response = client.models.generate_content(
-    model=model_name,
-    contents="Reply with one short sentence: Gemini is connected."
+    model=model_name, contents="Reply with one short sentence: Gemini is connected."
 )
 
 print(response.text)
