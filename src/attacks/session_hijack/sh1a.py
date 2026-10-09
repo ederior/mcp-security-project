@@ -1,9 +1,22 @@
+from typing import Any
+
 from contracts.events import ToolEvent
 from contracts.results import AttackOutcome, AttackResult
 from contracts.scenario import Scenario
 from mcp_server.events import ToolEventRecorder
-from mcp_server.server import health_check
+from mcp_server.server import list_notes
 from mcp_server.session import SessionStore, SessionValidationMode
+
+SH1A_TOOL_NAME = "list_notes"
+
+
+def _returns_only_owner_data(
+    records: list[dict[str, Any]],
+    owner_user_id: str,
+) -> bool:
+    return bool(records) and all(
+        record.get("owner_id") == owner_user_id for record in records
+    )
 
 
 def run_sh1a_baseline(
@@ -16,6 +29,9 @@ def run_sh1a_baseline(
 
     if scenario.victim_user_id is None:
         raise ValueError("AC-SH1a requires victim_user_id")
+
+    if SH1A_TOOL_NAME not in scenario.allowed_tools:
+        raise ValueError(f"AC-SH1a requires {SH1A_TOOL_NAME} in allowed_tools")
 
     store = SessionStore()
 
@@ -48,14 +64,35 @@ def run_sh1a_baseline(
     observed_signal_ids: list[str] = []
 
     if context.accepted:
+        # Vulnerable behavior: the server trusts the presented session as proof
+        # of authorization and scopes the data to the session owner, not to the
+        # user who actually sent the request.
+        data_owner_user_id = context.session_owner_user_id
+        arguments = {"user_id": data_owner_user_id}
+        target_authorized = data_owner_user_id in scenario.allowed_target_user_ids
+
         recorder.record_tool_requested(
-            tool_name="health_check",
-            arguments={},
+            tool_name=SH1A_TOOL_NAME,
+            arguments=arguments,
+            allowed=target_authorized,
+            classification=None if target_authorized else "unauthorized",
+            reason_code=(
+                None if target_authorized else "not_authorized_by_scenario_policy"
+            ),
         )
 
-        result = health_check()
+        records = list_notes(**arguments)
 
-        if context.user_mismatch and scenario.success_signal is not None:
+        accessed_other_user_data = (
+            data_owner_user_id != context.actor_user_id
+            and _returns_only_owner_data(records, data_owner_user_id)
+        )
+
+        if (
+            context.user_mismatch
+            and accessed_other_user_data
+            and scenario.success_signal is not None
+        ):
             recorder.record_attack_signal_observed(
                 attack_id=scenario.attack_id,
                 signal_id=scenario.success_signal,
@@ -63,12 +100,13 @@ def run_sh1a_baseline(
             observed_signal_ids.append(scenario.success_signal)
 
         recorder.record_tool_completed(
-            tool_name="health_check",
+            tool_name=SH1A_TOOL_NAME,
             result={
-                "result": result,
+                "result": records,
                 "is_error": False,
             },
             latency_ms=0.0,
+            classification=("session_owner_data" if accessed_other_user_data else None),
         )
 
     attack_result = AttackResult(
