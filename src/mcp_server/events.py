@@ -194,6 +194,8 @@ class ToolEventRecorder:
         *,
         attack_id: str,
         signal_id: str,
+        boundary: str | None = None,
+        canary_fingerprint: str | None = None,
     ) -> ToolEvent:
         event = ToolEvent(
             event_type=EventType.ATTACK_SIGNAL_OBSERVED,
@@ -203,6 +205,8 @@ class ToolEventRecorder:
             actor_user_id=self.actor_user_id,
             attack_id=attack_id,
             signal_id=signal_id,
+            boundary=boundary,
+            canary_fingerprint=canary_fingerprint,
         )
 
         self._append(event)
