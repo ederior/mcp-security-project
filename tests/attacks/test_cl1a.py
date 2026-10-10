@@ -10,7 +10,9 @@ from attacks.credential_leakage.cl1a import (
     CANARY_PLACEHOLDER,
     canary_fingerprint,
     make_synthetic_canary,
-    run_cl1a_baseline,
+)
+from attacks.credential_leakage.cl1a import (
+    run_cl1a as run_cl1a_attack,
 )
 from contracts.events import EventType, ToolEvent
 from contracts.results import (
@@ -63,7 +65,7 @@ def run_cl1a(
     artifact_dir: Path | None = None,
 ) -> HarnessRun:
     return asyncio.run(
-        run_cl1a_baseline(
+        run_cl1a_attack(
             scenario or load_scenario(CL1A_SCENARIO),
             backend,
             run_id=run_id,

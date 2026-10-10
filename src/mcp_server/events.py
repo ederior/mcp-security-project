@@ -230,6 +230,7 @@ class ToolEventRecorder:
         *,
         verdict: DetectionVerdict,
         tool_name: str | None = None,
+        boundary: str | None = None,
     ) -> ToolEvent:
         event = ToolEvent(
             event_type=EventType.DETECTION_EVALUATED,
@@ -245,6 +246,7 @@ class ToolEventRecorder:
             detected=verdict.detected,
             reason_code=verdict.reason_code,
             confidence=verdict.confidence,
+            boundary=boundary,
             latency_ms=verdict.latency_ms,
         )
 
