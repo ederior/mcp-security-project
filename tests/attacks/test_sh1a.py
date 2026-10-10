@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from attacks.session_hijack.sh1a import run_sh1a_baseline
+from attacks.session_hijack.sh1a import run_sh1a
 from contracts.events import EventType
 from contracts.results import AttackOutcome
 from harness.scenario_loader import load_scenario
@@ -13,10 +13,12 @@ SH1A_SCENARIO = Path("scenarios/attacks/ac_sh1a.yaml")
 def test_sh1a_mismatched_session_reads_session_owner_data() -> None:
     scenario = load_scenario(SH1A_SCENARIO)
 
-    attack_result, events = run_sh1a_baseline(
+    result, events = run_sh1a(
         scenario,
         run_id="sh1a_run_001",
     )
+    attack_result = result.attack_result
+    assert attack_result is not None
 
     assert len(events) == 4
 
@@ -72,10 +74,12 @@ def test_sh1a_owner_using_own_session_does_not_trigger_signal() -> None:
         }
     )
 
-    attack_result, events = run_sh1a_baseline(
+    result, events = run_sh1a(
         scenario,
         run_id="sh1a_run_control",
     )
+    attack_result = result.attack_result
+    assert attack_result is not None
 
     assert [event.event_type for event in events] == [
         EventType.REQUEST_RECEIVED,
@@ -90,7 +94,7 @@ def test_sh1a_owner_using_own_session_does_not_trigger_signal() -> None:
 def test_sh1a_events_do_not_contain_raw_identifiers_or_note_data() -> None:
     scenario = load_scenario(SH1A_SCENARIO)
 
-    _, events = run_sh1a_baseline(
+    _, events = run_sh1a(
         scenario,
         run_id="sh1a_run_sanitized",
     )

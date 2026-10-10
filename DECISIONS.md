@@ -242,3 +242,24 @@ The mitigation applies the explicit scenario policy (Decision 8) before every to
 **Primary source:** OWASP Prompt Injection guidance on indirect injection, separating instructions from untrusted data, and guardrails; MCP Security Best Practices on explicit authorization and least privilege.
 
 **Measurement:** AC-PI1a under the three modes: `none` gives succeeded / not_applicable / not_applicable; `detect` gives succeeded / detected / not_applied; `detect_and_mitigate` gives blocked / detected / applied, `get_user_profile` never starts, and the requested summary still completes. FPR is detected innocent runs divided by completed innocent runs, measured in `detect` and `detect_and_mitigate`. The N3.1 threshold is zero false positives on the five development cases, because one false positive already equals 20%; the final threshold is set in N4.2 on the full corpus. Detector and mitigation latency are recorded in every `DetectionVerdict`, `detection_evaluated` and `mitigation_applied` event, and in `RunResult`. Known limitation: an instruction hidden inside quotation marks evades the text rules; the authorization policy still blocks the follow-up, and the miss is counted as FNR.
+
+## 17. N3.2 Session Binding and Replay Validators
+
+**Decision:** Implement `session_binding_validator_v1` and `replay_validator_v1` in `src/defenses/detection/session_validator.py`, and their request gate in `src/defenses/mitigation/session_binding.py`. The defense catalog defines no separate identifier for session mitigations, so each validator identifier names both its detection and its enforcement: listed in `enabled_controls`, a validator records verdicts in `detect` and also rejects in `detect_and_mitigate`. An unknown identifier is a configuration error.
+
+The server keeps opening requests in its vulnerable mode, so it records the protocol facts without enforcing them; the existing `VALIDATED` server mode is not used by the experiment flow, so every rejection is attributed to a measured control. The gate runs before any tool:
+
+- `session_binding_validator_v1` compares the request user with the user bound to the session at creation. A mismatch gives `session_user_mismatch`; a match gives `session_user_matches`.
+- `replay_validator_v1` checks the request nonce against the session's used-nonce set as it was before this request (Decision 7). A reused nonce gives `duplicate_nonce`; a new nonce gives `nonce_not_seen`.
+
+Both are protocol comparisons with no LLM judge. Positive verdicts have confidence 1.0 and negative verdicts 0.0. Evidence contains only stable identifiers (`request_user_differs_from_session_owner`, `nonce_in_used_set`); raw session IDs and nonces are never stored. In `detect_and_mitigate` every positive verdict produces `mitigation_applied` with action `reject_request`, boundary `request`, and reason `session_binding_failed` or `replay_detected`; the request then produces no `tool_requested` or `tool_completed` event. Detection and mitigation events carry the sanitized request user, session owner, and session fingerprint.
+
+AC-SH1a runs in all three modes and returns a `RunResult` with the four outcome dimensions.
+
+**Scope limits:** `sequence_not_increasing` and `request_identifier_reused` are not implemented, because Decision 7 selects nonces only. The AC-SH3a attack and its end-to-end test belong to O4.2; N3.2 tests the replay validator with direct duplicate and distinct nonces. Because `tests/server/test_session.py` already exists, pytest runs with `--import-mode=importlib`, so test files in different folders may share a name without adding `__init__.py` files that would collide with the `src/defenses` package.
+
+**Threat and technique:** AC-SH1a — One User Reuses Another User's Session; AC-SH3a — The Same Request Is Accepted Twice. A session ID is routing state, not proof of authorization, and a copied request must not execute twice.
+
+**Primary source:** MCP Security Best Practices, session hijacking guidance: bind sessions to users and verify every inbound request.
+
+**Measurement:** AC-SH1a: `none` gives succeeded / not_applicable / not_applicable; `detect` gives succeeded / detected / not_applied; `detect_and_mitigate` gives blocked / detected / applied with no tool event. Replay: a duplicate nonce is detected, and rejected only in `detect_and_mitigate`. FPR is innocent runs with any positive verdict divided by completed innocent runs, in `detect` and `detect_and_mitigate`, over: the owner using their own session; two users each using their own session; two requests with distinct nonces; and a retry with a newly issued nonce. The N3.2 threshold is zero false positives. Validator and gate latency are recorded in every verdict, event, and `RunResult`.

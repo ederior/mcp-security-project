@@ -65,6 +65,15 @@ class SessionStore:
 
         return session
 
+    def used_nonces(self, session_id: str) -> frozenset[str]:
+        """Read-only copy of the nonces already accepted for a session."""
+        session = self._sessions.get(session_id)
+
+        if session is None:
+            raise SessionError("unknown session_id")
+
+        return frozenset(session.used_nonces)
+
     def begin_request(
         self,
         *,

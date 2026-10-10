@@ -103,6 +103,18 @@ class ToolEventRecorder:
         self._next_index = start_index
         self.events: list[ToolEvent] = []
 
+    def set_request_context(
+        self,
+        *,
+        actor_user_id: str,
+        session_owner_user_id: str,
+        session_fingerprint: str,
+    ) -> None:
+        """Attach the sanitized identities of the request being processed."""
+        self.actor_user_id = actor_user_id
+        self.session_owner_user_id = session_owner_user_id
+        self.session_fingerprint = session_fingerprint
+
     def record_request_received(
         self,
         *,
@@ -225,6 +237,8 @@ class ToolEventRecorder:
             scenario_id=self.scenario_id,
             event_index=self._next_index,
             actor_user_id=self.actor_user_id,
+            session_owner_user_id=self.session_owner_user_id,
+            session_fingerprint=self.session_fingerprint,
             tool_name=tool_name,
             detector_id=verdict.detector_id,
             detector_version=verdict.detector_version,
@@ -255,6 +269,8 @@ class ToolEventRecorder:
             scenario_id=self.scenario_id,
             event_index=self._next_index,
             actor_user_id=self.actor_user_id,
+            session_owner_user_id=self.session_owner_user_id,
+            session_fingerprint=self.session_fingerprint,
             tool_name=tool_name,
             mitigation_id=mitigation_id,
             mitigation_version=mitigation_version,
