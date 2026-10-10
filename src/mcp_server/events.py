@@ -4,6 +4,7 @@ from hashlib import sha256
 from typing import Any
 
 from contracts.events import EventType, ToolEvent
+from contracts.results import DetectionVerdict
 
 _SAFE_USER_ID = re.compile(r"^user_[A-Za-z0-9_-]{1,48}$")
 
@@ -207,6 +208,61 @@ class ToolEventRecorder:
             signal_id=signal_id,
             boundary=boundary,
             canary_fingerprint=canary_fingerprint,
+        )
+
+        self._append(event)
+        return event
+
+    def record_detection_evaluated(
+        self,
+        *,
+        verdict: DetectionVerdict,
+        tool_name: str | None = None,
+    ) -> ToolEvent:
+        event = ToolEvent(
+            event_type=EventType.DETECTION_EVALUATED,
+            run_id=self.run_id,
+            scenario_id=self.scenario_id,
+            event_index=self._next_index,
+            actor_user_id=self.actor_user_id,
+            tool_name=tool_name,
+            detector_id=verdict.detector_id,
+            detector_version=verdict.detector_version,
+            detected=verdict.detected,
+            reason_code=verdict.reason_code,
+            confidence=verdict.confidence,
+            latency_ms=verdict.latency_ms,
+        )
+
+        self._append(event)
+        return event
+
+    def record_mitigation_applied(
+        self,
+        *,
+        mitigation_id: str,
+        mitigation_version: str,
+        action: str,
+        reason_code: str,
+        boundary: str,
+        success: bool,
+        latency_ms: float,
+        tool_name: str | None = None,
+    ) -> ToolEvent:
+        event = ToolEvent(
+            event_type=EventType.MITIGATION_APPLIED,
+            run_id=self.run_id,
+            scenario_id=self.scenario_id,
+            event_index=self._next_index,
+            actor_user_id=self.actor_user_id,
+            tool_name=tool_name,
+            mitigation_id=mitigation_id,
+            mitigation_version=mitigation_version,
+            action=action,
+            reason_code=reason_code,
+            boundary=boundary,
+            success=success,
+            latency_ms=latency_ms,
         )
 
         self._append(event)

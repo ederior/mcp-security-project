@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from contracts.events import EventType
+from contracts.results import DetectionVerdict
 from mcp_client.persistent_client import PersistentMCPClient
 from mcp_server.events import (
     ToolEventRecorder,
@@ -268,3 +269,53 @@ def test_request_received_event_uses_sanitized_session_context() -> None:
 
     assert "raw_session_1" not in serialized
     assert "raw_nonce_1" not in serialized
+
+
+def test_detection_and_mitigation_events_keep_only_safe_fields() -> None:
+    recorder = ToolEventRecorder(
+        run_id="run_001",
+        scenario_id="ac_pi1a_baseline",
+        actor_user_id="user_1",
+    )
+
+    verdict = DetectionVerdict(
+        detector_id="prompt_injection_rules_v1",
+        detector_version="v1",
+        attack_family="prompt_injection",
+        scenario_id="ac_pi1a_baseline",
+        detected=True,
+        reason_code="followup_outside_user_goal",
+        confidence=1.0,
+        evidence_ids=["out_of_policy_tool_call"],
+        latency_ms=0.1,
+    )
+
+    detection = recorder.record_detection_evaluated(
+        verdict=verdict,
+        tool_name="get_user_profile",
+    )
+    mitigation = recorder.record_mitigation_applied(
+        mitigation_id="tool_authorization_policy_v1",
+        mitigation_version="v1",
+        action="block_tool_call",
+        reason_code="followup_not_authorized_by_user_goal",
+        boundary="tool_call",
+        success=True,
+        latency_ms=0.2,
+        tool_name="get_user_profile",
+    )
+
+    assert detection.event_type == EventType.DETECTION_EVALUATED
+    assert detection.event_index == 0
+    assert detection.detector_id == "prompt_injection_rules_v1"
+    assert detection.detected is True
+    assert detection.reason_code == "followup_outside_user_goal"
+    assert detection.confidence == 1.0
+    assert detection.latency_ms == 0.1
+
+    assert mitigation.event_type == EventType.MITIGATION_APPLIED
+    assert mitigation.event_index == 1
+    assert mitigation.action == "block_tool_call"
+    assert mitigation.boundary == "tool_call"
+    assert mitigation.success is True
+    assert mitigation.latency_ms == 0.2
