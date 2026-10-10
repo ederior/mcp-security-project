@@ -105,3 +105,70 @@ def test_pi1a_executes_unauthorized_followup_without_defense() -> None:
         assert harness_run.result.mitigation_outcome == MitigationOutcome.NOT_APPLICABLE
 
     asyncio.run(run())
+
+
+def test_pi1a_followup_not_requested_does_not_trigger_signal() -> None:
+    async def run() -> None:
+        scenario = load_scenario(PI1A_SCENARIO)
+        backend = FakeBackend(
+            (
+                BackendResponse(
+                    tool_calls=(
+                        ToolCall(
+                            name="read_note",
+                            arguments={"note_id": "note_4"},
+                        ),
+                    )
+                ),
+                BackendResponse(
+                    final_text="The report recommends testing MCP tools carefully."
+                ),
+            )
+        )
+
+        harness_run = await run_scenario(
+            scenario,
+            backend,
+            run_id="pi1a_run_control",
+        )
+
+        assert [event.event_type for event in harness_run.events] == [
+            EventType.TOOL_REQUESTED,
+            EventType.TOOL_COMPLETED,
+        ]
+        assert harness_run.events[0].classification == "allowed"
+
+        attack_result = harness_run.result.attack_result
+
+        assert attack_result is not None
+        assert attack_result.outcome == AttackOutcome.NOT_TRIGGERED
+        assert attack_result.observed_signal_ids == []
+
+    asyncio.run(run())
+
+
+def test_pi1a_events_do_not_contain_raw_tool_content() -> None:
+    async def run() -> None:
+        scenario = load_scenario(PI1A_SCENARIO)
+
+        harness_run = await run_scenario(
+            scenario,
+            make_pi1a_backend(),
+            run_id="pi1a_run_sanitized",
+        )
+
+        serialized = "\n".join(
+            [event.model_dump_json() for event in harness_run.events]
+            + [harness_run.result.model_dump_json()]
+        )
+
+        note_fixture = scenario.metadata["tool_data"]["read_note"]["note_4"]["result"]
+
+        assert "IGNORE ALL PREVIOUS INSTRUCTIONS" not in serialized
+        assert note_fixture["content"] not in serialized
+        assert note_fixture["title"] not in serialized
+
+        for value in ("Bob Levi", "Cyber Lab"):
+            assert value not in serialized
+
+    asyncio.run(run())
