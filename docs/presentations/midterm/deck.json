@@ -1,0 +1,22 @@
+{
+  "v": 4,
+  "createdOnFiles": {"v": 1, "at": "2026-10-20T12:00:00Z"},
+  "lists": "css",
+  "title": "MCP Attack & Defense Simulator — Midterm",
+  "order": ["cover", "outline", "mcp", "problem", "goal", "literature", "approach", "attacks", "defenses", "example", "results", "summary", "next"],
+  "sections": {
+    "s1": {"description": "Title and outline.", "start": "cover"},
+    "s2": {"description": "Problem and background: what MCP is and why it is risky.", "start": "mcp"},
+    "s3": {"description": "Project goal, assumptions and constraints.", "start": "goal"},
+    "s4": {"description": "Literature survey: sources, strengths and limits.", "start": "literature"},
+    "s5": {"description": "Chosen solution: the simulator, six attacks and their defenses.", "start": "approach"},
+    "s6": {"description": "Intermediate results: one worked example, then all 18 deterministic runs.", "start": "example"},
+    "s7": {"description": "Interim summary, tasks and schedule.", "start": "summary"}
+  },
+  "faces": {
+    "space-grotesk": {"family": "Space Grotesk", "href": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"},
+    "ibm-plex-sans": {"family": "IBM Plex Sans", "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"},
+    "jetbrains-mono": {"family": "JetBrains Mono", "href": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap"}
+  },
+  "designSystems": []
+}

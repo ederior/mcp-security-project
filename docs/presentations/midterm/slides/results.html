@@ -1,0 +1,42 @@
+<section id="results" data-transition="fade" style="background:#F6F4EE;color:#22303B;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column">
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:80px;font-weight:600;line-height:1.1;color:#13212B">Results: all six blocked</h2>
+<div style="position:absolute;left:128px;top:270px;width:560px;display:flex;flex-direction:column;gap:8px">
+<p style="font-size:48px;line-height:1.2;color:#6B7780">Attack</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Poisoned note</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Rule-breaking prompt</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Borrowed session</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Replayed request</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Leaked secret</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 0px 8px 0px;white-space:nowrap;color:#13212B">Stolen secret</p>
+</div>
+<div data-build-in="rise 1" style="position:absolute;left:704px;top:270px;width:352px;display:flex;flex-direction:column;gap:8px">
+<p style="font-size:48px;line-height:1.2;color:#6B7780">none</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F6DCC8;color:#7A3410">succeeds</p>
+</div>
+<div data-build-in="rise 2" style="position:absolute;left:1072px;top:270px;width:352px;display:flex;flex-direction:column;gap:8px">
+<p style="font-size:48px;line-height:1.2;color:#6B7780">detect</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+<p style="font-size:48px;line-height:1.2;padding:8px 24px 8px 24px;background:#F3E6CF;color:#6B4A0E">alert only</p>
+</div>
+<div data-build-in="rise 3" style="position:absolute;left:1440px;top:270px;width:352px;display:flex;flex-direction:column;gap:8px">
+<p style="font-size:48px;line-height:1.2;white-space:nowrap;color:#6B7780">full defense</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+<p style="font-size:48px;font-weight:600;line-height:1.2;padding:8px 24px 8px 24px;background:#D5E3F2;color:#1D4C80">blocked</p>
+</div>
+<p data-build-in="fade 4" style="position:absolute;left:128px;top:850px;width:1500px;font-size:48px;line-height:1.2;color:#3E4C59">18 scripted runs: proves logic, not real-model rates</p>
+<p style="position:absolute;right:128px;bottom:56px;width:160px;text-align:right;font-size:48px;color:#6B7780">11</p>
+<aside>The intermediate result, built one defense mode per click. Data: each of the six attacks from slide 8, run in each of the three modes, on the scripted model: 18 repeatable runs, plus a control run per attack where the attack is not attempted (those report not triggered). Click one, no defense: every attack succeeds. Click two, detect only: an alert is raised but the attack still succeeds. Click three, full defense (detect and mitigate): every attack is blocked, and the block is logged. Tests also scan every event, the console output, the logs and the result files to prove the raw fake secret never appears. Advantages: fully reproducible, no API keys, every outcome traceable to a logged event. Limitation, last click: a scripted model always "falls for" the attack, so this proves the defenses work when an attack happens; it does not measure how often a real model falls for it, or how many false alarms the defenses raise on normal use. Those come next. For Q&amp;A, the rows in code-name order are PI1a, PI2a, SH1a, SH3a, CL1a, CL2a. [Before presenting: rerun the test suite. These outcomes come from Or's local run on 10 Oct 2026; GitHub CI is currently red on a type check.]</aside>
+</section>
