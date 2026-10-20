@@ -1,0 +1,16 @@
+<section id="goal" data-transition="fade" style="background:#F6F4EE;color:#22303B;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column">
+<div style="position:absolute;left:1200px;top:0px;width:720px;height:1080px;background:#13212B"></div>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:80px;font-weight:600;line-height:1.1;color:#13212B">Project goal</h2>
+<div data-build-in="rise 1" style="position:absolute;left:128px;top:330px;width:1000px;display:flex;gap:36px;align-items:baseline"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:64px;font-weight:600;color:#B4561A">1</p><p style="font-size:56px;line-height:1.2;color:#13212B">How often do attacks succeed?</p></div>
+<div data-build-in="rise 2" style="position:absolute;left:128px;top:500px;width:1000px;display:flex;gap:36px;align-items:baseline"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:64px;font-weight:600;color:#B4561A">2</p><p style="font-size:56px;line-height:1.2;color:#13212B">How much do defenses help?</p></div>
+<div data-build-in="rise 3" style="position:absolute;left:128px;top:670px;width:1000px;display:flex;gap:36px;align-items:baseline"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:64px;font-weight:600;color:#B4561A">3</p><p style="font-size:56px;line-height:1.2;color:#13212B">What should be hardened?</p></div>
+<div style="position:absolute;left:1280px;top:330px;width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:48px;font-weight:600;color:#E08A4A">Constraints</p>
+<p style="font-size:48px;line-height:1.25;color:#EEF1F0">Local server only</p>
+<p style="font-size:48px;line-height:1.25;color:#EEF1F0">Fake secrets only</p>
+<p style="font-size:48px;line-height:1.25;color:#EEF1F0">Fake test users</p>
+<p style="font-size:48px;line-height:1.25;color:#EEF1F0">No network attacks</p>
+</div>
+<p style="position:absolute;right:128px;bottom:56px;width:160px;text-align:right;font-size:48px;color:#8FA1AB">5</p>
+<aside>Three research questions, one per click, each tied to a metric: attack success rate; the drop in that rate from detection and from mitigation, plus false alarms and added latency; and the hardening recommendations in the final report. On the right, the assumptions and constraints: everything runs against our own local server; success is measured with harmless fake secrets ("canaries") and fake users; network-layer attacks such as TLS, and attacks on the model's weights, are out of scope.</aside>
+</section>

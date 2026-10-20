@@ -1,0 +1,21 @@
+<section id="problem" data-transition="fade" style="background:#13212B;color:#EEF1F0;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column">
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:80px;font-weight:600;line-height:1.1;color:#EEF1F0">Three ways agents fail</h2>
+<div data-build-in="rise 1" style="position:absolute;left:128px;top:300px;width:517px;display:flex;flex-direction:column;gap:24px">
+<div style="width:120px;height:120px;display:flex;align-items:center;justify-content:center;background:#1E3140;border-radius:50%"><x-icon name="Chat" style="color:#E08A4A;width:72px;height:72px"></x-icon></div>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:52px;font-weight:600;line-height:1.15;color:#EEF1F0">Prompt injection</h3>
+<p style="font-size:48px;line-height:1.3;color:#BCC8CF">Hidden text takes control</p>
+</div>
+<div data-build-in="rise 2" style="position:absolute;left:693px;top:300px;width:517px;display:flex;flex-direction:column;gap:24px">
+<div style="width:120px;height:120px;display:flex;align-items:center;justify-content:center;background:#1E3140;border-radius:50%"><x-icon name="Users" style="color:#E08A4A;width:72px;height:72px"></x-icon></div>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:52px;font-weight:600;line-height:1.15;color:#EEF1F0">Session hijacking</h3>
+<p style="font-size:48px;line-height:1.3;color:#BCC8CF">Wrong user, or a copied request</p>
+</div>
+<div data-build-in="rise 3" style="position:absolute;left:1258px;top:300px;width:534px;display:flex;flex-direction:column;gap:24px">
+<div style="width:120px;height:120px;display:flex;align-items:center;justify-content:center;background:#1E3140;border-radius:50%"><x-icon name="Key" style="color:#E08A4A;width:72px;height:72px"></x-icon></div>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:52px;font-weight:600;line-height:1.15;color:#EEF1F0">Credential leakage</h3>
+<p style="font-size:48px;line-height:1.3;color:#BCC8CF">A secret leaves the system</p>
+</div>
+<p data-build-in="fade 4" style="position:absolute;left:128px;top:800px;width:1664px;font-size:48px;line-height:1.3;color:#EEF1F0"><span style="color:#E08A4A">The gap:</span> guidance lists defenses, not how well they work.</p>
+<p style="position:absolute;right:128px;bottom:56px;width:160px;text-align:right;font-size:48px;color:#8FA1AB">4</p>
+<aside>Background, motivation and the gap. The agent mixes trusted instructions with untrusted data, and it acts with the user's authority. Each click adds one family. Prompt injection: the model follows instructions wherever they appear. Session hijacking: the session ID is treated as proof of identity, or a copied request is accepted again. Credential leakage: a secret the agent was allowed to read ends up somewhere it should not. Our threat model lists 15 threats across these families; we chose six core attack variants, two per family. Last click, the gap, desired versus actual: the sources on the literature slide recommend controls but give no numbers on how much each one reduces attack success. That is what we measure. [Decide whether to mention image-based attacks as a later direction.]</aside>
+</section>
