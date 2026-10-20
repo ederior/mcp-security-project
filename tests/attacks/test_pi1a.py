@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+from pydantic import JsonValue
+
 from contracts.events import EventType
 from contracts.results import (
     AttackOutcome,
@@ -162,11 +164,22 @@ def test_pi1a_events_do_not_contain_raw_tool_content() -> None:
             + [harness_run.result.model_dump_json()]
         )
 
-        note_fixture = scenario.metadata["tool_data"]["read_note"]["note_4"]["result"]
+        # Metadata is typed as generic JSON, so check each level is a dict
+        # before indexing it; this also gives mypy the narrowed type.
+        note_fixture: JsonValue = scenario.metadata
+        for key in ("tool_data", "read_note", "note_4", "result"):
+            assert isinstance(note_fixture, dict), f"not a mapping at {key!r}"
+            note_fixture = note_fixture[key]
+        assert isinstance(note_fixture, dict)
+
+        content = note_fixture["content"]
+        title = note_fixture["title"]
+        assert isinstance(content, str)
+        assert isinstance(title, str)
 
         assert "IGNORE ALL PREVIOUS INSTRUCTIONS" not in serialized
-        assert note_fixture["content"] not in serialized
-        assert note_fixture["title"] not in serialized
+        assert content not in serialized
+        assert title not in serialized
 
         for value in ("Bob Levi", "Cyber Lab"):
             assert value not in serialized

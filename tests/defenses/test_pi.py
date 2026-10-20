@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import JsonValue
 
 from contracts.events import EventType
 from contracts.results import (
@@ -11,7 +12,13 @@ from contracts.results import (
     DetectionOutcome,
     MitigationOutcome,
 )
-from contracts.scenario import DefenseMode, Scenario
+from contracts.scenario import (
+    ActorIntent,
+    Backend,
+    DefenseMode,
+    MaliciousInputSource,
+    Scenario,
+)
 from defenses.detection import prompt_injection
 from defenses.mitigation import tool_policy
 from harness.runner import HarnessRun, run_scenario
@@ -42,10 +49,14 @@ def pi1a_scenario(mode: DefenseMode) -> Scenario:
 
 
 def pi1a_note(scenario: Scenario) -> dict[str, Any]:
-    note: dict[str, Any] = scenario.metadata["tool_data"]["read_note"]["note_4"][
-        "result"
-    ]
-    return note
+    # Metadata is typed as generic JSON, so check each level is a dict
+    # before indexing it; this also gives mypy the narrowed type.
+    value: JsonValue = scenario.metadata
+    for key in ("tool_data", "read_note", "note_4", "result"):
+        assert isinstance(value, dict), f"metadata is not a mapping at {key!r}"
+        value = value[key]
+    assert isinstance(value, dict)
+    return value
 
 
 def pi1a_backend() -> FakeBackend:
@@ -430,16 +441,16 @@ DEFENDED_MODES = [DefenseMode.DETECT, DefenseMode.DETECT_AND_MITIGATE]
 def benign_scenario(case: BenignCase, mode: DefenseMode) -> Scenario:
     return Scenario(
         scenario_id=case.case_id,
-        actor_intent="innocent",
+        actor_intent=ActorIntent.INNOCENT,
         actor_user_id="user_1",
-        malicious_input_source="none",
+        malicious_input_source=MaliciousInputSource.NONE,
         user_prompt=case.prompt,
         allowed_tools=case.allowed_tools,
         allowed_operations=["read"],
         allowed_target_user_ids=["user_1"],
         defense_mode=mode,
         enabled_controls=PI_CONTROLS,
-        backend="fake",
+        backend=Backend.FAKE,
         seed=0,
         repetition=1,
         nonce=f"{case.case_id}_nonce",
