@@ -1,3 +1,7 @@
+import logging
+
+import pytest
+
 from mcp_server.server import (
     get_user_profile,
     health_check,
@@ -7,14 +11,14 @@ from mcp_server.server import (
 )
 
 
-def test_health_check():
+def test_health_check() -> None:
     result = health_check()
 
     assert result["status"] == "ok"
     assert result["server"] == "SecureNotes Lab MCP Server"
 
 
-def test_list_notes_for_user_1():
+def test_list_notes_for_user_1() -> None:
     result = list_notes("user_1")
 
     note_ids = {note["note_id"] for note in result}
@@ -22,7 +26,7 @@ def test_list_notes_for_user_1():
     assert note_ids == {"note_1", "note_2", "note_4"}
 
 
-def test_read_note():
+def test_read_note() -> None:
     result = read_note("note_1")
 
     assert result["note_id"] == "note_1"
@@ -30,7 +34,7 @@ def test_read_note():
     assert result["title"] == "Project Plan"
 
 
-def test_search_notes():
+def test_search_notes() -> None:
     result = search_notes("Admin")
 
     assert len(result) == 1
@@ -38,9 +42,23 @@ def test_search_notes():
     assert result[0]["owner_id"] == "user_2"
 
 
-def test_get_user_profile():
+def test_get_user_profile() -> None:
     result = get_user_profile("user_2")
 
     assert result["user_id"] == "user_2"
     assert result["name"] == "Bob Levi"
     assert result["role"] == "admin"
+
+
+def test_search_notes_does_not_log_raw_sensitive_query(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_secret = "FAKE_SECRET_must_not_appear_in_logs"
+
+    caplog.set_level(logging.INFO)
+
+    search_notes(fake_secret)
+
+    assert fake_secret not in caplog.text
+    assert "action=search_notes" in caplog.text
+    assert "details_fingerprint=sha256:" in caplog.text
