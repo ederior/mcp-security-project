@@ -240,9 +240,6 @@ def _finalize(
     monitor: CanaryBoundaryMonitor,
     canary_fingerprint: str,
 ) -> HarnessRun:
-    assert scenario.attack_id is not None
-    assert scenario.success_signal is not None
-
     events = list(harness_run.events)
 
     # Secret-control and signal events follow the harness events.
@@ -258,6 +255,12 @@ def _finalize(
         monitor.redactor.records() if monitor.redactor is not None else ()
     )
 
+    if scenario.attack_id is None and (monitor.crossed_boundaries or redaction_records):
+        # A normal-use run whose scripted innocent model let the registered
+        # canary reach a boundary is a fixture mistake, not a measured result
+        # (Decision 23). The message never contains the canary.
+        raise ValueError("A normal-use run let the registered canary reach a boundary")
+
     for boundary, verdict in scanner_verdicts:
         recorder.record_detection_evaluated(verdict=verdict, boundary=boundary)
 
@@ -272,28 +275,36 @@ def _finalize(
             latency_ms=record.latency_ms,
         )
 
-    # One signal per boundary the raw canary still crossed.
-    for crossed in monitor.crossed_boundaries:
-        recorder.record_attack_signal_observed(
+    if scenario.attack_id is None:
+        # Normal-use run (Decision 23): no attack, so no signal; the check
+        # above guarantees the canary never reached a boundary.
+        attack_result = AttackResult(
+            scenario_id=scenario.scenario_id,
+            outcome=AttackOutcome.NOT_APPLICABLE,
+        )
+    else:
+        assert scenario.success_signal is not None
+
+        # One signal per boundary the raw canary still crossed.
+        for crossed in monitor.crossed_boundaries:
+            recorder.record_attack_signal_observed(
+                attack_id=scenario.attack_id,
+                signal_id=scenario.success_signal,
+                boundary=crossed.value,
+                canary_fingerprint=canary_fingerprint,
+            )
+
+        attack_result = AttackResult(
+            scenario_id=scenario.scenario_id,
             attack_id=scenario.attack_id,
-            signal_id=scenario.success_signal,
-            boundary=crossed.value,
-            canary_fingerprint=canary_fingerprint,
+            expected_success_signal=scenario.success_signal,
+            observed_signal_ids=(
+                [scenario.success_signal] if monitor.crossed_boundaries else []
+            ),
+            outcome=_attack_outcome(monitor, bool(redaction_records)),
         )
 
     events.extend(recorder.events)
-
-    observed_signal_ids = (
-        [scenario.success_signal] if monitor.crossed_boundaries else []
-    )
-
-    attack_result = AttackResult(
-        scenario_id=scenario.scenario_id,
-        attack_id=scenario.attack_id,
-        expected_success_signal=scenario.success_signal,
-        observed_signal_ids=observed_signal_ids,
-        outcome=_attack_outcome(monitor, bool(redaction_records)),
-    )
 
     verdicts = [verdict for _, verdict in scanner_verdicts]
 
@@ -372,10 +383,12 @@ async def run_cl1a(
     artifact_dir: Path | None = None,
     git_sha: str | None = None,
 ) -> HarnessRun:
-    if scenario.attack_id != "AC-CL1a":
-        raise ValueError("run_cl1a requires an AC-CL1a scenario")
+    # A scenario without attack_id is a normal-use run of the same secret
+    # boundaries (Decision 23).
+    if scenario.attack_id not in ("AC-CL1a", None):
+        raise ValueError("run_cl1a requires an AC-CL1a or normal-use scenario")
 
-    if scenario.success_signal is None:
+    if scenario.attack_id is not None and scenario.success_signal is None:
         raise ValueError("AC-CL1a requires success_signal")
 
     if artifact_dir is not None and git_sha is None:

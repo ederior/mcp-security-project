@@ -1,10 +1,13 @@
-"""One entry point that runs any attack scenario in any defense mode.
+"""One entry point that runs any scenario in any defense mode.
 
-``run_one`` routes on ``attack_id`` to the existing attack runner, turns any
-failure into an ``error`` or ``inconclusive`` RunResult instead of raising,
-and writes the run artifacts (Decision 22).
+``run_one`` routes an attack scenario on ``attack_id`` to the existing attack
+runner (Decision 22) and a normal-use scenario on
+``metadata.normal_use_route`` (Decision 23). It turns any failure into an
+``error`` or ``inconclusive`` RunResult instead of raising, and writes the
+run artifacts.
 """
 
+import secrets
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,12 +15,13 @@ from time import perf_counter
 
 from attacks.credential_leakage.cl1a import run_cl1a
 from attacks.credential_leakage.cl2a import run_cl2a
-from attacks.credential_leakage.local_sink import LocalExfiltrationSink
+from attacks.credential_leakage.local_sink import SINK_TOOL_NAME, LocalExfiltrationSink
 from attacks.session_hijack.sh1a import run_sh1a
 from attacks.session_hijack.sh3a import run_sh3a
 from contracts.results import ExecutionStatus, RunResult
 from contracts.scenario import DefenseMode, Scenario
 from harness.artifacts import write_run_artifacts, write_run_metadata
+from harness.normal_use import run_session_requests
 from harness.runner import HarnessRun, ToolRoundLimitExceeded, run_scenario
 from llm_backend.base import BackendUnavailable, LLMBackend
 from llm_backend.fake import FakeScriptError, load_fake_script
@@ -34,6 +38,15 @@ MODEL_FREE_ATTACKS = frozenset({"AC-SH1a", "AC-SH3a"})
 SELF_WRITING_ATTACKS = frozenset({"AC-CL1a", "AC-CL2a"})
 
 PROMPT_INJECTION_ATTACKS = frozenset({"AC-PI1a", "AC-PI2a"})
+
+# Normal-use routes (Decision 23): metadata.normal_use_route picks the runner.
+TOOL_CALLS_ROUTE = "tool_calls"
+TEST_SINK_ROUTE = "test_sink"
+SESSION_REQUESTS_ROUTE = "session_requests"
+SECRET_BOUNDARIES_ROUTE = "secret_boundaries"
+NORMAL_USE_ROUTES = frozenset(
+    {TOOL_CALLS_ROUTE, TEST_SINK_ROUTE, SESSION_REQUESTS_ROUTE, SECRET_BOUNDARIES_ROUTE}
+)
 
 # Reason codes for runs that did not complete (Decision 22).
 CONFIGURATION_ERROR = "configuration_error"
@@ -62,6 +75,37 @@ def fake_script_factory(script_dir: Path) -> BackendFactory:
         return script.make_backend(), script.script_id
 
     return factory
+
+
+def normal_use_route(scenario: Scenario) -> str:
+    """The route of a normal-use scenario. A missing or unknown route is a
+    configuration error, so no scenario runs through the wrong runner."""
+    if scenario.attack_id is not None:
+        raise ValueError("Only normal-use scenarios have a normal_use_route")
+
+    route = scenario.metadata.get("normal_use_route")
+
+    if not isinstance(route, str) or route not in NORMAL_USE_ROUTES:
+        raise ValueError(
+            f"Missing or unknown normal_use_route in {scenario.scenario_id}"
+        )
+
+    return route
+
+
+def _needs_backend(scenario: Scenario) -> bool:
+    if scenario.attack_id is None:
+        return normal_use_route(scenario) != SESSION_REQUESTS_ROUTE
+
+    return scenario.attack_id not in MODEL_FREE_ATTACKS
+
+
+def _writes_own_artifacts(scenario: Scenario) -> bool:
+    """Runs whose runner writes the artifacts itself (AC-CL1a's pre-write scan)."""
+    if scenario.attack_id is None:
+        return scenario.metadata.get("normal_use_route") == SECRET_BOUNDARIES_ROUTE
+
+    return scenario.attack_id in SELF_WRITING_ATTACKS
 
 
 def with_defense_mode(
@@ -136,7 +180,7 @@ async def run_one(
     try:
         backend: LLMBackend | None = None
 
-        if scenario.attack_id not in MODEL_FREE_ATTACKS:
+        if _needs_backend(scenario):
             backend, fake_script_id = backend_factory(scenario)
 
         harness_run = await _execute(
@@ -164,9 +208,9 @@ async def run_one(
         assert git_sha is not None
         run_dir = artifact_dir / run_id
 
-        if scenario.attack_id in SELF_WRITING_ATTACKS and run_dir.exists():
-            # The attack module already wrote the run; add the setup fields
-            # it does not know about.
+        if _writes_own_artifacts(scenario) and run_dir.exists():
+            # The runner already wrote the run; add the setup fields it does
+            # not know about.
             write_run_metadata(
                 run_dir,
                 scenario,
@@ -195,8 +239,17 @@ async def _execute(
     artifact_dir: Path | None,
     git_sha: str | None,
 ) -> HarnessRun:
-    """Route one scenario to the runner of its attack."""
+    """Route one scenario to the runner of its attack or normal-use route."""
     attack_id = scenario.attack_id
+
+    if attack_id is None:
+        return await _execute_normal_use(
+            scenario,
+            backend,
+            run_id=run_id,
+            artifact_dir=artifact_dir,
+            git_sha=git_sha,
+        )
 
     if attack_id == "AC-SH1a":
         result, events = run_sh1a(scenario, run_id=run_id)
@@ -233,9 +286,54 @@ async def _execute(
         finally:
             sink.clear()
 
-    # Normal-use scenarios have no attack_id; only the prompt-injection
-    # family supports them so far (Decision 22, scope limits).
-    if attack_id is None or attack_id in PROMPT_INJECTION_ATTACKS:
+    if attack_id in PROMPT_INJECTION_ATTACKS:
         return await run_scenario(scenario, backend, run_id=run_id)
 
     raise ValueError(f"No runner for attack_id {attack_id}")
+
+
+async def _execute_normal_use(
+    scenario: Scenario,
+    backend: LLMBackend | None,
+    *,
+    run_id: str,
+    artifact_dir: Path | None,
+    git_sha: str | None,
+) -> HarnessRun:
+    """Route a normal-use scenario on its normal_use_route (Decision 23)."""
+    route = normal_use_route(scenario)
+
+    if route == SESSION_REQUESTS_ROUTE:
+        result, events = run_session_requests(scenario, run_id=run_id)
+        return HarnessRun(result=result, events=events, final_text="")
+
+    if backend is None:
+        raise ValueError(f"Route {route} needs a model backend")
+
+    if route == SECRET_BOUNDARIES_ROUTE:
+        return await run_cl1a(
+            scenario,
+            backend,
+            run_id=run_id,
+            artifact_dir=artifact_dir,
+            git_sha=git_sha,
+        )
+
+    if route == TEST_SINK_ROUTE:
+        # A normal-use sink run has no secret. The sink must be armed before
+        # it receives, so it is armed with a random value that never appears
+        # anywhere in the run; it can never report a received canary.
+        sink = LocalExfiltrationSink()
+        sink.arm(f"unused_{secrets.token_hex(16)}")
+
+        try:
+            return await run_scenario(
+                scenario,
+                backend,
+                run_id=run_id,
+                extra_tools={SINK_TOOL_NAME: sink.receive},
+            )
+        finally:
+            sink.clear()
+
+    return await run_scenario(scenario, backend, run_id=run_id)

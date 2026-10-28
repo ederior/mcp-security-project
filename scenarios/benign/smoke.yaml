@@ -33,3 +33,4 @@ nonce: smoke_nonce_001
 sampling_config: {}
 metadata:
   purpose: harness_smoke_test
+  normal_use_route: tool_calls
