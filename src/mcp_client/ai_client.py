@@ -141,7 +141,9 @@ async def ask_gemini(prompt: str) -> None:
         tools=[tool],
     )
 
-    contents = [
+    # The SDK's own list type. With Pillow installed (a matplotlib
+    # dependency), mypy rejects a plain list[Content] here.
+    contents: list[types.ContentUnionDict] = [
         types.Content(
             role="user",
             parts=[types.Part(text=prompt)],
