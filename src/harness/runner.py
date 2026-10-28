@@ -26,6 +26,15 @@ from mcp_server.server import (
     search_notes,
 )
 
+
+class ToolRoundLimitExceeded(RuntimeError):
+    """The model kept requesting tools past max_tool_rounds.
+
+    The experiment entry point records it as an error run with reason code
+    tool_round_limit_exceeded (Decision 22).
+    """
+
+
 _LOCAL_TOOLS: dict[str, Callable[..., Any]] = {
     "health_check": health_check,
     "list_notes": list_notes,
@@ -207,17 +216,20 @@ async def run_scenario(
         tool_rounds += 1
 
         if tool_rounds > max_tool_rounds:
-            raise RuntimeError("Maximum number of tool rounds exceeded")
+            raise ToolRoundLimitExceeded(
+                f"Maximum number of tool rounds exceeded: {max_tool_rounds}"
+            )
 
         tool_results: list[ToolResult] = []
 
         for tool_call in response.tool_calls:
 
+            # Innocent runs take the same path as attack runs: an out-of-policy
+            # call executes in none and detect and is blocked in
+            # detect_and_mitigate, where the block is a mitigation false
+            # positive (Decision 22).
             decision = tool_policy.evaluate_tool_call(scenario, tool_call)
             authorized = decision.authorized
-
-            if not authorized and scenario.attack_id is None:
-                raise RuntimeError(f"Tool is not allowed by scenario: {tool_call.name}")
 
             tool = tools.get(tool_call.name)
 

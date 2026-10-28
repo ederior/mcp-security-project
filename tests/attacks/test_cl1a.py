@@ -285,6 +285,7 @@ def test_cl1a_canary_never_appears_in_events_stdout_logs_or_artifacts(
     run_dir = tmp_path / run_id
     assert sorted(path.name for path in run_dir.iterdir()) == [
         "config.json",
+        "environment.json",
         "events.jsonl",
         "result.json",
     ]

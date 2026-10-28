@@ -1,8 +1,9 @@
 import asyncio
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
-from harness.artifacts import write_run_artifacts
+from harness.artifacts import make_batch_id, make_run_id, write_run_artifacts
 from harness.runner import run_scenario
 from harness.scenario_loader import load_scenario
 from llm_backend.base import BackendResponse, ToolCall
@@ -43,24 +44,24 @@ async def execute_smoke(
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     *,
     git_sha: str | None = None,
+    started_at: datetime | None = None,
 ) -> Path:
+    """Run the smoke scenario into output_dir/<batch_id>/runs/<run_id>/."""
     scenario = load_scenario(SMOKE_SCENARIO)
-
-    run_id = (
-        f"{scenario.scenario_id}" f"_seed{scenario.seed}" f"_rep{scenario.repetition}"
-    )
+    started_at = started_at or datetime.now(UTC)
 
     harness_run = await run_scenario(
         scenario,
         make_smoke_backend(),
-        run_id=run_id,
+        run_id=make_run_id(scenario),
     )
 
     return write_run_artifacts(
         harness_run,
         scenario,
-        output_dir=output_dir,
+        output_dir=Path(output_dir) / make_batch_id(started_at) / "runs",
         git_sha=git_sha or current_git_sha(),
+        started_at=started_at,
     )
 
 

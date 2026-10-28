@@ -1,9 +1,13 @@
 import asyncio
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
+from contracts.events import EventType, ToolEvent
 from contracts.results import ExecutionStatus, RunResult
 from harness.smoke import execute_smoke
+
+STARTED_AT = datetime(2026, 10, 28, 15, 30, 0, tzinfo=UTC)
 
 
 def test_execute_smoke_creates_complete_run(
@@ -13,31 +17,36 @@ def test_execute_smoke_creates_complete_run(
         execute_smoke(
             tmp_path,
             git_sha="test_git_sha",
+            started_at=STARTED_AT,
         )
     )
 
-    assert run_dir.name == "benign_smoke_seed0_rep1"
+    assert run_dir == tmp_path / "20261028T153000Z" / "runs" / (
+        "benign_smoke__none__seed0__rep1"
+    )
 
-    events_path = run_dir / "events.jsonl"
-    result_path = run_dir / "result.json"
-    config_path = run_dir / "config.json"
-
-    assert events_path.is_file()
-    assert result_path.is_file()
-    assert config_path.is_file()
-
-    result = RunResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+    result = RunResult.model_validate_json(
+        (run_dir / "result.json").read_text(encoding="utf-8")
+    )
 
     assert result.execution_status == ExecutionStatus.COMPLETED
     assert result.scenario_id == "benign_smoke"
 
-    event_lines = events_path.read_text(encoding="utf-8").splitlines()
+    events = [
+        ToolEvent.model_validate_json(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
 
-    assert len(event_lines) == 2
+    assert events[0].event_type == EventType.RUN_STARTED
+    assert events[-1].event_type == EventType.RUN_COMPLETED
+    assert len(events) == 4
 
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
 
     assert config["backend"] == "fake"
     assert config["seed"] == 0
     assert config["repetition"] == 1
-    assert config["git_sha"] == "test_git_sha"
+
+    environment = json.loads((run_dir / "environment.json").read_text(encoding="utf-8"))
+
+    assert environment["git_sha"] == "test_git_sha"

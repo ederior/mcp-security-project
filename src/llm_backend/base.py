@@ -4,6 +4,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+class BackendUnavailable(Exception):
+    """The model service could not answer, for example HTTP 429 or 503.
+
+    A run that ends with this error is inconclusive, not a defense result
+    (Decision 22). The Fake backend never raises it.
+    """
+
+
 @dataclass(frozen=True)
 class ToolCall:
     name: str
