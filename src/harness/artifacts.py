@@ -27,6 +27,11 @@ def make_run_id(scenario: Scenario) -> str:
     )
 
 
+def format_utc(moment: datetime) -> str:
+    """ISO 8601 in UTC with a Z suffix, for example 2026-10-28T15:30:00Z."""
+    return _as_utc(moment).isoformat().replace("+00:00", "Z")
+
+
 def make_batch_id(started_at: datetime) -> str:
     """Return the batch identifier: the UTC start time, for example 20261028T153000Z."""
     return _as_utc(started_at).strftime("%Y%m%dT%H%M%SZ")
@@ -155,7 +160,7 @@ def build_environment(
             "release": platform.release(),
             "machine": platform.machine(),
         },
-        "started_at_utc": _as_utc(started_at).isoformat().replace("+00:00", "Z"),
+        "started_at_utc": format_utc(started_at),
     }
 
 

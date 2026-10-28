@@ -1,0 +1,44 @@
+# The deterministic core matrix: 6 attacks x 3 defense modes = 18 runs
+# (docs/experiment_plan.md §4, Decision 22). Paths are relative to the
+# repository root.
+matrix_id: fake_core_v1
+backend: fake
+fake_script_dir: experiments/fake_scripts
+
+defense_modes:
+  - none
+  - detect
+  - detect_and_mitigate
+
+# The Fake scripts ignore the seed, so more seeds would only repeat identical
+# runs (Decision 22). Stability is checked by tests/harness/test_reproducibility.py.
+seeds: [0]
+repetitions: 1
+
+# Controls of each attack family. Both defended modes get the same list; the
+# runners decide what each mode enforces.
+control_sets:
+  prompt_injection:
+    - prompt_injection_rules_v1
+    - tool_authorization_policy_v1
+  session:
+    - session_binding_validator_v1
+    - replay_validator_v1
+  secret:
+    - synthetic_secret_scanner_v1
+    - synthetic_secret_redactor_v1
+
+scenarios:
+  - file: scenarios/attacks/ac_pi1a.yaml
+    control_set: prompt_injection
+  - file: scenarios/attacks/ac_pi2a.yaml
+    control_set: prompt_injection
+  - file: scenarios/attacks/ac_sh1a.yaml
+    control_set: session
+  - file: scenarios/attacks/ac_sh3a.yaml
+    control_set: session
+  - file: scenarios/attacks/ac_cl1a.yaml
+    control_set: secret
+  # AC-CL2a is blocked by the prompt-injection controls (Decision 21).
+  - file: scenarios/attacks/ac_cl2a.yaml
+    control_set: prompt_injection
