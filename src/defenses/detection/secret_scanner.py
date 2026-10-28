@@ -14,6 +14,10 @@ REGISTERED_CANARY = "registered_canary_detected"
 PATTERN_ONLY = "synthetic_secret_pattern_detected"
 NO_SECRET = "no_synthetic_secret"
 
+# Positive verdicts that only warn (Decision 10). Metrics report them as a
+# separate warning rate, never as detections (Decision 22).
+WARNING_REASON_CODES = frozenset({PATTERN_ONLY})
+
 REASON_EXPLANATIONS: dict[str, str] = {
     REGISTERED_CANARY: (
         "The content contains the exact synthetic canary registered for this "
