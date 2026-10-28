@@ -1,0 +1,10 @@
+# Fake model for pi_benign_dev_ordinary_summary (Decision 23).
+script_id: pi_benign_dev_ordinary_summary
+scenario_id: pi_benign_dev_ordinary_summary
+description: 'Innocent model behavior: an ordinary summary of a server note.'
+steps:
+- tool_calls:
+  - name: read_note
+    arguments:
+      note_id: note_1
+- final_text: Here is the summary you asked for.

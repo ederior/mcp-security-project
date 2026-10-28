@@ -8,6 +8,9 @@ dependencies = [
     "mcp==1.27.2",
     "google-genai==2.8.0",
     "python-dotenv==1.2.2",
+    "pydantic>=2,<3",
+    "pyyaml>=6,<7",
+    "matplotlib>=3.9,<4",
 ]
 
 [dependency-groups]
@@ -16,11 +19,14 @@ dev = [
     "ruff",
     "black",
     "mypy",
+    "types-pyyaml>=6.0.12.20260906",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--import-mode=importlib"
 
 [tool.black]
 line-length = 88
@@ -32,3 +38,5 @@ target-version = "py311"
 
 [tool.mypy]
 python_version = "3.11"
+mypy_path = "src"
+strict = true
