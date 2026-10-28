@@ -7,7 +7,9 @@ A batch is written to ``<output_root>/<batch_id>/`` (Decision 22):
 - ``runs/<run_id>/``: the four files of every run;
 - ``summary.json``: every cell metric, including per-detector rates;
 - ``summary.csv``: one row per cell with the core metrics;
-- ``verdicts.csv``: runs per cell, detector, and reason code.
+- ``verdicts.csv``: runs per cell, detector, and reason code;
+- ``detectors.csv``: each detector's confusion matrix per mode and corpus
+  split (Decision 23).
 
 The summaries are computed from the run files on disk, not from memory, so
 they always describe exactly what was written.
@@ -29,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from contracts.results import ExecutionStatus
 from contracts.scenario import Backend, DefenseMode, Scenario
+from defenses.detection import prompt_injection, secret_scanner, session_validator
 from harness.artifacts import format_utc, make_batch_id, make_run_id
 from harness.dispatch import (
     BackendFactory,
@@ -38,8 +41,10 @@ from harness.dispatch import (
 )
 from harness.metrics import (
     CellSummary,
+    DetectorConfusion,
     Rate,
     VerdictCount,
+    detector_confusion,
     load_run_record,
     summarize,
     verdict_counts,
@@ -92,8 +97,34 @@ VERDICT_COLUMNS = (
     "completed_runs",
 )
 
+DETECTOR_COLUMNS = (
+    "detector_id",
+    "defense_mode",
+    "backend",
+    "normal_use_split",
+    "target_attacks",
+    "true_positives",
+    "false_negatives",
+    "false_positives",
+    "true_negatives",
+    "true_positive_rate",
+    "false_positive_rate",
+    "normal_use_warnings",
+)
+
 
 # --- the matrix -------------------------------------------------------------
+
+# The detectors whose confusion matrix is reported (Decision 23). The
+# mitigations in a control set are not detectors and need no targets.
+DETECTOR_IDS = frozenset(
+    {
+        prompt_injection.DETECTOR_ID,
+        session_validator.BINDING_VALIDATOR_ID,
+        session_validator.REPLAY_VALIDATOR_ID,
+        secret_scanner.DETECTOR_ID,
+    }
+)
 
 
 class MatrixScenario(BaseModel):
@@ -116,6 +147,9 @@ class Matrix(BaseModel):
     seeds: list[int] = Field(min_length=1)
     repetitions: int = Field(ge=1)
     control_sets: dict[str, list[str]]
+    # The attacks each detector is built for: only their runs are the
+    # detector's positives (Decision 23, amendment).
+    detector_targets: dict[str, list[str]] = Field(default_factory=dict)
     scenarios: list[MatrixScenario] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -138,6 +172,28 @@ class Matrix(BaseModel):
         files = [entry.file for entry in self.scenarios]
         if len(set(files)) != len(files):
             raise ValueError("a scenario file is listed twice")
+
+        unknown_detectors = set(self.detector_targets) - DETECTOR_IDS
+        if unknown_detectors:
+            raise ValueError(
+                f"Unknown detectors in detector_targets: "
+                f"{', '.join(sorted(unknown_detectors))}"
+            )
+
+        used_detectors = {
+            control
+            for entry in self.scenarios
+            for control in self.control_sets[entry.control_set]
+            if control in DETECTOR_IDS
+        }
+        untargeted = used_detectors - set(self.detector_targets)
+        if untargeted:
+            raise ValueError(
+                f"Detectors without detector_targets: {', '.join(sorted(untargeted))}"
+            )
+
+        if any(not attacks for attacks in self.detector_targets.values()):
+            raise ValueError("every detector needs at least one target attack")
 
         if self.backend == Backend.GEMINI:
             raise ValueError("The Gemini backend is not available yet")
@@ -196,6 +252,21 @@ def plan_runs(matrix: Matrix) -> tuple[PlannedRun, ...]:
     run_ids = [run.run_id for run in planned]
     if len(set(run_ids)) != len(run_ids):
         raise ValueError("two scenario files share a scenario_id")
+
+    # A target that is not in the matrix would quietly leave a detector
+    # without positives (Decision 23, amendment).
+    planned_attacks = {run.scenario.attack_id for run in planned}
+    missing = {
+        attack
+        for attacks in matrix.detector_targets.values()
+        for attack in attacks
+        if attack not in planned_attacks
+    }
+    if missing:
+        raise ValueError(
+            f"detector_targets names attacks not in the matrix: "
+            f"{', '.join(sorted(missing))}"
+        )
 
     return tuple(planned)
 
@@ -282,10 +353,15 @@ async def run_batch(
 
     records = [load_run_record(runs_dir / run.run_id) for run in planned]
     summaries = summarize(records)
+    confusion = detector_confusion(records, matrix.detector_targets)
 
     _write_json(
         batch_dir / "summary.json",
-        {"batch_id": batch_id, "cells": to_jsonable(summaries)},
+        {
+            "batch_id": batch_id,
+            "cells": to_jsonable(summaries),
+            "detectors": to_jsonable(confusion),
+        },
     )
     _write_csv(
         batch_dir / "summary.csv",
@@ -296,6 +372,11 @@ async def run_batch(
         batch_dir / "verdicts.csv",
         VERDICT_COLUMNS,
         [verdict_row(row) for row in verdict_counts(records)],
+    )
+    _write_csv(
+        batch_dir / "detectors.csv",
+        DETECTOR_COLUMNS,
+        [detector_row(row) for row in confusion],
     )
 
     counted = Counter(record.result.execution_status.value for record in records)
@@ -433,3 +514,20 @@ def _write_csv(
                     for column in columns
                 }
             )
+
+
+def detector_row(row: DetectorConfusion) -> dict[str, Any]:
+    return {
+        "detector_id": row.detector_id,
+        "defense_mode": row.defense_mode.value,
+        "backend": row.backend.value,
+        "normal_use_split": row.normal_use_split,
+        "target_attacks": " ".join(row.target_attack_ids),
+        "true_positives": row.true_positives,
+        "false_negatives": row.false_negatives,
+        "false_positives": row.false_positives,
+        "true_negatives": row.true_negatives,
+        "true_positive_rate": row.true_positive_rate.value,
+        "false_positive_rate": row.false_positive_rate.value,
+        "normal_use_warnings": row.normal_use_warnings,
+    }

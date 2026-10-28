@@ -57,9 +57,12 @@ PLOT_FILES = (
     "attack_success_rate.png",
     "block_rate.png",
     "detection_rate.png",
-    "false_positive_rate.png",
     "latency_overhead.png",
 )
+
+# One false-positive chart per normal-use corpus split, for example
+# false_positive_rate_development.png (Decision 23).
+FALSE_POSITIVE_FILE = "false_positive_rate_{split}.png"
 
 
 @dataclass(frozen=True)
@@ -72,8 +75,8 @@ class Series:
 def draw_batch_plots(batch_dir: Path) -> tuple[Path, ...]:
     """Draw every plot that has data into batch_dir/plots/; return the files.
 
-    The false-positive chart is drawn only when the batch has normal-use
-    cells.
+    A false-positive chart is drawn for each corpus split that has judged
+    normal-use runs.
     """
     summary = _read_json(batch_dir / "summary.json")
     batch = _read_json(batch_dir / "batch.json")
@@ -85,7 +88,10 @@ def draw_batch_plots(batch_dir: Path) -> tuple[Path, ...]:
     written: list[Path] = []
 
     attacks = [cell for cell in cells if cell["kind"] == "attack"]
-    normal_use = [cell for cell in cells if cell["kind"] == "normal_use"]
+    detectors: list[dict[str, Any]] = summary.get("detectors", [])
+    splits = sorted(
+        {row["normal_use_split"] for row in detectors if row["normal_use_split"]}
+    )
 
     if attacks:
         written.append(
@@ -115,10 +121,13 @@ def draw_batch_plots(batch_dir: Path) -> tuple[Path, ...]:
             _overhead_chart(attacks, context, plots_dir / "latency_overhead.png")
         )
 
-    if normal_use:
+    for split in splits:
         written.append(
             _false_positive_chart(
-                normal_use, context, plots_dir / "false_positive_rate.png"
+                detectors,
+                split,
+                context,
+                plots_dir / FALSE_POSITIVE_FILE.format(split=split),
             )
         )
 
@@ -199,38 +208,44 @@ def _detection_chart(cells: Sequence[dict[str, Any]], context: str, path: Path) 
 
 
 def _false_positive_chart(
-    cells: Sequence[dict[str, Any]], context: str, path: Path
+    rows: Sequence[dict[str, Any]], split: str, context: str, path: Path
 ) -> Path:
-    """Per detector: innocent runs it flagged, in the two defended modes."""
+    """Each detector's false-positive rate on one corpus split, per mode.
+
+    Built from the confusion-matrix rows, so each bar is the detector's
+    flagged normal-use runs out of its judged normal-use runs (Decision 23).
+    """
     modes = ("detect", "detect_and_mitigate")
-    pairs = sorted(
-        {
-            (cell["cell_id"], detector["detector_id"])
-            for cell in cells
-            if cell["defense_mode"] in modes
-            for detector in cell["detectors"]
-        }
-    )
-    groups = [f"{cell_id}\n{detector_id}" for cell_id, detector_id in pairs]
+    shown = [
+        row
+        for row in rows
+        if row["normal_use_split"] == split and row["defense_mode"] in modes
+    ]
+    detector_ids = sorted({row["detector_id"] for row in shown})
+
+    def rate(detector_id: str, mode: str) -> float | None:
+        for row in shown:
+            if row["detector_id"] == detector_id and row["defense_mode"] == mode:
+                return _optional_float(row["false_positive_rate"]["value"])
+
+        return None
+
     series = [
         Series(
             MODE_LABELS[mode],
             MODE_COLORS[mode],
-            [
-                _detector_flagged(_find(cells, cell_id, mode), detector_id)
-                for cell_id, detector_id in pairs
-            ],
+            [rate(detector_id, mode) for detector_id in detector_ids],
         )
         for mode in modes
     ]
-    totals = [cell["completed"] for cell in cells if cell["defense_mode"] in modes]
+    totals = [int(row["false_positive_rate"]["total"]) for row in shown]
 
     figure, (axes,) = _figure(1)
-    _grouped_bars(axes, groups, series, percent=True)
+    _grouped_bars(axes, detector_ids, series, percent=True)
     _frame(
         figure,
-        "False-positive rate on normal-use scenarios, per detector",
-        f"{context} · {_sample_size(totals, 'completed run')}",
+        f"False-positive rate per detector: {split.replace('_', ' ')} cases",
+        f"{context} · {_sample_size(totals, 'normal-use run')}",
     )
     _legend(figure, series)
     return _save(figure, path)
@@ -343,7 +358,7 @@ def _note(axes: Axes, x: float, text: str) -> None:
 
 
 def _frame(figure: Figure, title: str, subtitle: str) -> None:
-    figure.text(0.08, 0.95, title, fontsize=13, color=INK_PRIMARY, weight="semibold")
+    figure.text(0.08, 0.95, title, fontsize=13, color=INK_PRIMARY, weight="bold")
     figure.text(0.08, 0.895, subtitle, fontsize=9, color=INK_SECONDARY)
 
 
@@ -425,14 +440,6 @@ def _content_rule_value(cell: dict[str, Any]) -> float | None:
 
         if group is not None:
             return _optional_float(group["value"])
-
-    return None
-
-
-def _detector_flagged(cell: dict[str, Any], detector_id: str) -> float | None:
-    for detector in cell.get("detectors", []):
-        if detector["detector_id"] == detector_id:
-            return _optional_float(detector["flagged"]["value"])
 
     return None
 

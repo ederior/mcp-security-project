@@ -142,7 +142,14 @@ def build_config(
         "repetition": scenario.repetition,
         "sampling_config": scenario.sampling_config,
         "fake_script_id": fake_script_id,
+        # development or final_holdout for normal-use scenarios (Decision 23).
+        "corpus_split": _corpus_split(scenario),
     }
+
+
+def _corpus_split(scenario: Scenario) -> str | None:
+    split = scenario.metadata.get("corpus_split")
+    return split if isinstance(split, str) else None
 
 
 def build_environment(

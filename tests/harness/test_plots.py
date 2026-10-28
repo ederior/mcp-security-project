@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from harness.experiment import load_matrix, run_batch
+from harness.experiment import Matrix, load_matrix, run_batch
 from harness.plots import PLOT_FILES, _sample_size, draw_batch_plots
 
 MATRIX_FILE = Path("experiments/matrix_fake.yaml")
@@ -20,12 +20,21 @@ ATTACK_PLOTS = [
 ]
 
 
+def attack_only_matrix() -> Matrix:
+    """The six attacks without the normal-use corpus, so no FPR plot."""
+    matrix = load_matrix(MATRIX_FILE)
+    attacks = [
+        e for e in matrix.scenarios if e.file.parent == Path("scenarios/attacks")
+    ]
+    return matrix.model_copy(update={"scenarios": attacks})
+
+
 @pytest.fixture(scope="module")
 def fake_batch(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """One real 18-run Fake batch, shared by the tests in this module."""
+    """One real 18-run attack batch, shared by the tests in this module."""
     outcome = asyncio.run(
         run_batch(
-            load_matrix(MATRIX_FILE),
+            attack_only_matrix(),
             matrix_file=MATRIX_FILE,
             output_root=tmp_path_factory.mktemp("results"),
             git_sha="test_sha",
@@ -57,38 +66,36 @@ def test_attack_plots_are_written_as_png(fake_batch: Path, tmp_path: Path) -> No
         assert len(content) > 5_000
 
 
-def test_no_false_positive_plot_without_normal_use_cells(
+def test_no_false_positive_plot_without_normal_use_runs(
     fake_batch: Path, tmp_path: Path
 ) -> None:
     batch_dir = copy_batch(fake_batch, tmp_path)
 
     draw_batch_plots(batch_dir)
 
-    assert not (batch_dir / "plots" / "false_positive_rate.png").exists()
+    # Attack-only confusion rows have no normal-use split to plot.
+    assert list((batch_dir / "plots").glob("false_positive_rate*")) == []
 
 
-def test_false_positive_plot_is_drawn_for_normal_use_cells(
+def test_one_false_positive_plot_per_corpus_split(
     fake_batch: Path, tmp_path: Path
 ) -> None:
     batch_dir = copy_batch(fake_batch, tmp_path)
     summary_path = batch_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
-    # Turn two defended PI1a cells into normal-use cells: same structure as
-    # summarize() writes, with attack-only metrics not applicable.
-    for cell in summary["cells"]:
-        if cell["cell_id"] == "AC-PI1a" and cell["defense_mode"] != "none":
-            normal = copy.deepcopy(cell)
-            normal.update(
-                kind="normal_use",
-                cell_id="benign_pi_note",
-                attack_success_rate=None,
-                block_rate=None,
-                detection_rate=None,
-                false_negative_rate=None,
-                relative_asr_reduction=None,
+    # Give every defended confusion row a development and a holdout twin,
+    # in the structure detector_confusion() writes.
+    for row in list(summary["detectors"]):
+        for split in ("development", "final_holdout"):
+            twin = copy.deepcopy(row)
+            twin.update(
+                normal_use_split=split,
+                false_positives=1,
+                true_negatives=9,
+                false_positive_rate={"count": 1, "total": 10, "value": 0.1},
             )
-            summary["cells"].append(normal)
+            summary["detectors"].append(twin)
 
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
 
@@ -96,7 +103,8 @@ def test_false_positive_plot_is_drawn_for_normal_use_cells(
 
     assert [path.name for path in written] == [
         *ATTACK_PLOTS,
-        "false_positive_rate.png",
+        "false_positive_rate_development.png",
+        "false_positive_rate_final_holdout.png",
     ]
 
 

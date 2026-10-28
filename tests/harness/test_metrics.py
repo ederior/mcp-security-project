@@ -17,9 +17,11 @@ from contracts.results import (
 from contracts.scenario import Backend, DefenseMode
 from harness.dispatch import fake_script_factory, run_one, with_defense_mode
 from harness.metrics import (
+    UNASSIGNED_SPLIT,
     CellKind,
     CellSummary,
     RunRecord,
+    detector_confusion,
     latency_stats,
     load_run_record,
     summarize,
@@ -56,6 +58,7 @@ def record(
     status: ExecutionStatus = ExecutionStatus.COMPLETED,
     total_ms: float = 10.0,
     seed: int = 0,
+    corpus_split: str | None = None,
 ) -> RunRecord:
     """A hand-built run that satisfies every RunResult rule."""
     if status != ExecutionStatus.COMPLETED:
@@ -122,6 +125,7 @@ def record(
         seed=seed,
         repetition=1,
         result=result,
+        corpus_split=corpus_split,
     )
 
 
@@ -430,6 +434,164 @@ def test_verdict_counts_count_runs_not_verdicts() -> None:
         ("no_synthetic_secret", 1, 2, False),
         ("synthetic_secret_pattern_detected", 1, 2, True),
     ]
+
+
+# --- detector confusion matrix (Decision 23) --------------------------------
+
+
+# Each detector's target attacks, as in experiments/matrix_fake.yaml.
+TARGETS = {
+    PI_DETECTOR: ["AC-PI1a", "AC-PI2a", "AC-CL2a"],
+    SCANNER: ["AC-CL1a"],
+    "session_binding_validator_v1": ["AC-SH1a"],
+    "replay_validator_v1": ["AC-SH3a"],
+}
+
+
+def flagged(detected: bool = True) -> list[DetectionVerdict]:
+    reason = "followup_outside_user_goal" if detected else "followup_within_user_goal"
+    return [verdict(PI_DETECTOR, reason, detected)]
+
+
+def test_confusion_counts_attacks_against_each_normal_use_split() -> None:
+    rows = detector_confusion(
+        [
+            record("a1", verdicts=flagged()),
+            record("a2", verdicts=flagged(False)),
+            *(
+                record(
+                    run_id,
+                    attack_id=None,
+                    verdicts=flagged(detected),
+                    corpus_split=split,
+                )
+                for run_id, detected, split in [
+                    ("d1", True, "development"),
+                    ("d2", False, "development"),
+                    ("d3", False, "development"),
+                    ("h1", False, "final_holdout"),
+                ]
+            ),
+        ],
+        TARGETS,
+    )
+
+    assert [
+        (
+            r.normal_use_split,
+            r.true_positives,
+            r.false_negatives,
+            r.false_positives,
+            r.true_negatives,
+        )
+        for r in rows
+    ] == [("development", 1, 1, 1, 2), ("final_holdout", 1, 1, 0, 1)]
+    development, _ = rows
+    assert development.true_positive_rate.value == 0.5
+    assert development.false_positive_rate.value == pytest.approx(1 / 3)
+
+
+def test_confusion_counts_warnings_apart_from_false_positives() -> None:
+    (row,) = detector_confusion(
+        [
+            record(
+                "a1",
+                attack_id="AC-CL1a",
+                verdicts=[verdict(SCANNER, "registered_canary_detected", True)],
+            ),
+            record(
+                "b1",
+                attack_id=None,
+                corpus_split="development",
+                verdicts=[verdict(SCANNER, "synthetic_secret_pattern_detected", True)],
+            ),
+        ],
+        TARGETS,
+    )
+
+    assert (row.true_positives, row.false_positives, row.true_negatives) == (1, 0, 1)
+    assert row.normal_use_warnings == 1
+
+
+def test_confusion_without_normal_use_runs_has_no_split() -> None:
+    (row,) = detector_confusion([record("a1", verdicts=flagged())], TARGETS)
+
+    assert row.normal_use_split is None
+    assert row.false_positive_rate.total == 0
+    assert row.false_positive_rate.value is None
+
+
+def test_confusion_counts_only_completed_runs_the_detector_judged() -> None:
+    rows = detector_confusion(
+        [
+            record("a1", verdicts=flagged()),
+            # Not judged: no defense, failed, or another detector only.
+            record("a2", mode=DefenseMode.NONE),
+            record("a3", status=ExecutionStatus.ERROR),
+            record(
+                "a4",
+                attack_id="AC-CL1a",
+                verdicts=[verdict(SCANNER, "no_synthetic_secret", False)],
+            ),
+        ],
+        TARGETS,
+    )
+
+    pi_row = next(r for r in rows if r.detector_id == PI_DETECTOR)
+    assert (pi_row.true_positives, pi_row.false_negatives) == (1, 0)
+    assert {r.detector_id for r in rows} == {PI_DETECTOR, SCANNER}
+
+
+def test_normal_use_runs_without_a_split_are_unassigned() -> None:
+    (row,) = detector_confusion(
+        [record("b1", attack_id=None, verdicts=flagged(False))], TARGETS
+    )
+
+    assert row.normal_use_split == UNASSIGNED_SPLIT
+
+
+def test_only_target_attacks_are_positives() -> None:
+    # Both session validators judge both session attacks. Each correct "no"
+    # on the attack it does not target must not count as a miss.
+    binding = "session_binding_validator_v1"
+    replay = "replay_validator_v1"
+    rows = detector_confusion(
+        [
+            record(
+                "sh1a",
+                attack_id="AC-SH1a",
+                verdicts=[
+                    verdict(binding, "session_user_mismatch", True),
+                    verdict(replay, "nonce_not_seen", False),
+                ],
+            ),
+            record(
+                "sh3a",
+                attack_id="AC-SH3a",
+                verdicts=[
+                    verdict(binding, "session_user_matches", False),
+                    verdict(replay, "duplicate_nonce", True),
+                ],
+            ),
+        ],
+        TARGETS,
+    )
+
+    by_detector = {row.detector_id: row for row in rows}
+    for detector_id, target in ((binding, "AC-SH1a"), (replay, "AC-SH3a")):
+        row = by_detector[detector_id]
+        assert (row.true_positives, row.false_negatives) == (1, 0)
+        assert row.target_attack_ids == (target,)
+
+
+def test_a_detector_without_targets_is_rejected() -> None:
+    with pytest.raises(ValueError, match="No target attacks"):
+        detector_confusion([record("a1", verdicts=flagged())], {SCANNER: ["AC-CL1a"]})
+
+
+def test_confusion_rejects_duplicate_run_ids() -> None:
+    with pytest.raises(ValueError, match="Duplicate run_id"):
+        detector_confusion([record("same"), record("same")], TARGETS)
 
 
 # --- reading real runs ------------------------------------------------------

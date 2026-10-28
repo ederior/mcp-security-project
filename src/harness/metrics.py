@@ -16,7 +16,7 @@ sample size.
 
 import statistics
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -79,6 +79,7 @@ class _RunConfig(BaseModel):
     backend: Backend
     seed: int
     repetition: int
+    corpus_split: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,8 @@ class RunRecord:
     seed: int
     repetition: int
     result: RunResult
+    # development or final_holdout for normal-use runs (Decision 23).
+    corpus_split: str | None = None
 
     @property
     def completed(self) -> bool:
@@ -129,6 +132,7 @@ def load_run_record(run_dir: Path) -> RunRecord:
         seed=config.seed,
         repetition=config.repetition,
         result=result,
+        corpus_split=config.corpus_split,
     )
 
 
@@ -232,6 +236,7 @@ class VerdictCount:
 # --- computation ------------------------------------------------------------
 
 _CellKey = tuple[CellKind, str, DefenseMode, Backend]
+_DetectorKey = tuple[str, DefenseMode, Backend]
 
 
 def summarize(records: Iterable[RunRecord]) -> tuple[CellSummary, ...]:
@@ -287,6 +292,125 @@ def verdict_counts(records: Iterable[RunRecord]) -> tuple[VerdictCount, ...]:
             )
 
     return tuple(rows)
+
+
+# Normal-use runs without a corpus_split, such as the smoke scenario.
+UNASSIGNED_SPLIT = "unassigned"
+
+
+@dataclass(frozen=True)
+class DetectorConfusion:
+    """One detector's confusion matrix in one defense mode and backend.
+
+    Positives are the completed runs of the detector's target attacks in
+    which it produced a verdict; runs of other attacks are left out.
+    Negatives are the completed normal-use runs of one corpus split in which
+    it produced a verdict (Decision 23 and its amendment). A run counts once,
+    and only enforcing verdicts count as positive: warnings are counted
+    separately. ``normal_use_split`` is None when no normal-use run was judged.
+    """
+
+    detector_id: str
+    defense_mode: DefenseMode
+    backend: Backend
+    normal_use_split: str | None
+    target_attack_ids: tuple[str, ...]
+    true_positives: int
+    false_negatives: int
+    false_positives: int
+    true_negatives: int
+    true_positive_rate: Rate
+    false_positive_rate: Rate
+    normal_use_warnings: int
+
+
+def detector_confusion(
+    records: Iterable[RunRecord],
+    targets: Mapping[str, Sequence[str]],
+) -> tuple[DetectorConfusion, ...]:
+    """One row per detector, mode, backend, and normal-use split.
+
+    ``targets`` maps each detector to the attacks it is built for. A detector
+    with verdicts but no entry is a configuration mistake and raises.
+    """
+    runs = list(records)
+    _group_by_cell(runs)  # rejects duplicate run IDs
+
+    attack_runs: dict[_DetectorKey, list[RunRecord]] = defaultdict(list)
+    normal_runs: dict[_DetectorKey, dict[str, list[RunRecord]]] = defaultdict(dict)
+
+    for run in runs:
+        if not run.completed:
+            continue
+
+        for detector_id in {v.detector_id for v in run.result.detection_verdicts}:
+            if detector_id not in targets:
+                raise ValueError(f"No target attacks for detector {detector_id}")
+
+            key = (detector_id, run.defense_mode, run.backend)
+
+            if run.kind == CellKind.ATTACK:
+                # Another attack's run is neither a positive nor a negative.
+                if run.attack_id in targets[detector_id]:
+                    attack_runs[key].append(run)
+            else:
+                run_split = run.corpus_split or UNASSIGNED_SPLIT
+                normal_runs[key].setdefault(run_split, []).append(run)
+
+    rows: list[DetectorConfusion] = []
+    keys = sorted(
+        set(attack_runs) | set(normal_runs),
+        key=lambda key: (key[0], _MODE_ORDER[key[1]], key[2].value),
+    )
+
+    for key in keys:
+        detector_id, mode, backend = key
+        positives = attack_runs.get(key, [])
+        true_positives = sum(_flagged_by(run, detector_id) for run in positives)
+        # None stands for "no normal-use run judged", so TPR still shows.
+        splits: dict[str | None, list[RunRecord]] = {
+            name: judged for name, judged in normal_runs.get(key, {}).items()
+        }
+
+        if not splits:
+            splits = {None: []}
+
+        for split, negatives in sorted(splits.items(), key=lambda i: i[0] or ""):
+            false_positives = sum(_flagged_by(run, detector_id) for run in negatives)
+            rows.append(
+                DetectorConfusion(
+                    detector_id=detector_id,
+                    defense_mode=mode,
+                    backend=backend,
+                    normal_use_split=split,
+                    target_attack_ids=tuple(targets[detector_id]),
+                    true_positives=true_positives,
+                    false_negatives=len(positives) - true_positives,
+                    false_positives=false_positives,
+                    true_negatives=len(negatives) - false_positives,
+                    true_positive_rate=Rate(true_positives, len(positives)),
+                    false_positive_rate=Rate(false_positives, len(negatives)),
+                    normal_use_warnings=sum(
+                        _warned_by(run, detector_id) for run in negatives
+                    ),
+                )
+            )
+
+    return tuple(rows)
+
+
+def _flagged_by(run: RunRecord, detector_id: str) -> bool:
+    return any(
+        is_enforcing(verdict) and verdict.detector_id == detector_id
+        for verdict in run.result.detection_verdicts
+    )
+
+
+def _warned_by(run: RunRecord, detector_id: str) -> bool:
+    return any(
+        is_warning(verdict) and verdict.detector_id == detector_id
+        for verdict in run.result.detection_verdicts
+    )
 
 
 def latency_stats(values: Sequence[float]) -> LatencyStats:

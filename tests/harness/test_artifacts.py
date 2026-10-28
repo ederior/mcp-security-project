@@ -185,6 +185,7 @@ def test_config_contains_the_experiment_plan_fields(tmp_path: Path) -> None:
         "attack_id": None,
         "attack_name": None,
         "backend": "fake",
+        "corpus_split": None,
         "defense_mode": "none",
         "enabled_controls": [],
         "fake_script_id": "benign_smoke",

@@ -1,4 +1,5 @@
 import asyncio
+import re
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,9 @@ from llm_backend.fake import (
 
 SCRIPT_DIR = Path("experiments/fake_scripts")
 ATTACK_SCENARIO_DIR = Path("scenarios/attacks")
+BENIGN_SCENARIO_DIR = Path("scenarios/benign")
+SECRET_FORMAT = re.compile(r"(?:FAKE_SECRET|CANARY)_[A-Za-z0-9_-]+")
+UNREGISTERED_LOOKALIKE = "FAKE_SECRET_sample_id"
 
 # Harmless synthetic test values in the canary format; not real secrets.
 TEST_CANARY = "FAKE_SECRET_test_run_a"
@@ -52,14 +56,32 @@ def play(backend: FakeBackend, *tool_results: ToolResult) -> BackendResponse:
 # --- the script files -------------------------------------------------------
 
 
-def test_every_script_belongs_to_an_attack_scenario() -> None:
-    scenario_ids = {
-        load_scenario(path).scenario_id for path in ATTACK_SCENARIO_DIR.glob("*.yaml")
-    }
+def model_scenario_ids() -> set[str]:
+    """Scenarios whose runner calls a model, so they need a Fake script."""
+    ids: set[str] = set()
+
+    for path in [
+        *ATTACK_SCENARIO_DIR.glob("*.yaml"),
+        *BENIGN_SCENARIO_DIR.glob("*.yaml"),
+    ]:
+        scenario = load_scenario(path)
+        route = scenario.metadata.get("normal_use_route")
+
+        # SH1a and SH3a and the session corpus never call a model; the smoke
+        # scenario has its backend built in code.
+        protocol_only = scenario.attack_id in {"AC-SH1a", "AC-SH3a"}
+        if protocol_only or route == "session_requests" or path.name == "smoke.yaml":
+            continue
+
+        ids.add(scenario.scenario_id)
+
+    return ids
+
+
+def test_every_model_scenario_has_exactly_one_script() -> None:
     script_ids = {path.stem for path in SCRIPT_DIR.glob("*.yaml")}
 
-    # SH1a and SH3a are protocol attacks that never call a model.
-    assert script_ids == scenario_ids - {"ac_sh1a_baseline", "ac_sh3a_baseline"}
+    assert script_ids == model_scenario_ids()
 
     for script_id in script_ids:
         script = load_fake_script(script_path(script_id))
@@ -68,8 +90,11 @@ def test_every_script_belongs_to_an_attack_scenario() -> None:
 
 
 def test_script_files_never_store_a_raw_canary() -> None:
+    # The only canary-format text allowed is the documented unregistered
+    # lookalike of secret_benign_dev_unregistered_lookalike (Decision 23).
     for path in SCRIPT_DIR.glob("*.yaml"):
-        assert "FAKE_SECRET_" not in path.read_text(encoding="utf-8")
+        found = set(SECRET_FORMAT.findall(path.read_text(encoding="utf-8")))
+        assert found <= {UNREGISTERED_LOOKALIKE}, path
 
 
 def test_make_backend_returns_a_fresh_backend_each_time() -> None:

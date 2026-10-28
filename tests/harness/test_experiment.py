@@ -45,28 +45,44 @@ def raw_matrix() -> dict[str, Any]:
     return raw
 
 
-def test_fake_matrix_plans_the_eighteen_core_runs() -> None:
+def decided_controls(scenario_id: str, attack_id: str | None) -> list[str]:
+    """Decision 22 for attacks; Decision 23 for the normal-use corpus."""
+    if attack_id is not None:
+        return DECIDED_CONTROLS[attack_id]
+
+    if scenario_id == "secret_benign_dev_authorized_sink_public_text":
+        return PI_CONTROLS  # the AC-CL2a controls
+
+    prefixes = {"pi_": PI_CONTROLS, "session_": SESSION_CONTROLS}
+    prefixes["secret_"] = SECRET_CONTROLS
+    (controls,) = [c for p, c in prefixes.items() if scenario_id.startswith(p)]
+    return controls
+
+
+def test_fake_matrix_plans_attacks_and_the_development_corpus() -> None:
     planned = plan_runs(load_matrix(MATRIX_FILE))
 
-    assert len(planned) == 18
-    assert len({run.run_id for run in planned}) == 18
+    # 6 attacks and 16 normal-use cases, each in 3 modes.
+    assert len(planned) == 66
+    assert len({run.run_id for run in planned}) == 66
+    assert sum(run.scenario.attack_id is not None for run in planned) == 18
 
     for run in planned:
         scenario = run.scenario
-        assert scenario.attack_id is not None
         assert run.run_id == (
             f"{scenario.scenario_id}__{scenario.defense_mode.value}__seed0__rep1"
         )
         assert scenario.enabled_controls == (
             []
             if scenario.defense_mode == DefenseMode.NONE
-            else DECIDED_CONTROLS[scenario.attack_id]
+            else decided_controls(scenario.scenario_id, scenario.attack_id)
         )
 
 
 def test_seeds_and_repetitions_expand_in_a_fixed_order() -> None:
     raw = raw_matrix()
     raw["scenarios"] = raw["scenarios"][:1]
+    raw["detector_targets"] = {"prompt_injection_rules_v1": ["AC-PI1a"]}
     raw["seeds"] = [0, 1]
     raw["repetitions"] = 2
 
@@ -101,6 +117,44 @@ def test_invalid_matrices_are_rejected(change: dict[str, Any], message: str) -> 
 
     with pytest.raises(ValueError, match=message):
         Matrix.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    ("targets", "message"),
+    [
+        (
+            {"prompt_injection_rule_v1": ["AC-PI1a"]},
+            "Unknown detectors in detector_targets",
+        ),
+        ({"prompt_injection_rules_v1": []}, "at least one target attack"),
+    ],
+)
+def test_invalid_detector_targets_are_rejected(
+    targets: dict[str, list[str]], message: str
+) -> None:
+    raw = raw_matrix()
+    raw["detector_targets"] = {**raw["detector_targets"], **targets}
+
+    with pytest.raises(ValueError, match=message):
+        Matrix.model_validate(raw)
+
+
+def test_a_used_detector_needs_targets() -> None:
+    raw = raw_matrix()
+    del raw["detector_targets"]["replay_validator_v1"]
+
+    with pytest.raises(
+        ValueError, match="without detector_targets: replay_validator_v1"
+    ):
+        Matrix.model_validate(raw)
+
+
+def test_targets_must_be_attacks_in_the_matrix() -> None:
+    raw = raw_matrix()
+    raw["detector_targets"]["replay_validator_v1"] = ["AC-SH3a", "AC-SH9z"]
+
+    with pytest.raises(ValueError, match="not in the matrix: AC-SH9z"):
+        plan_runs(Matrix.model_validate(raw))
 
 
 def test_duplicate_scenario_files_are_rejected() -> None:

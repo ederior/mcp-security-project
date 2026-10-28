@@ -1,6 +1,6 @@
-# The deterministic core matrix: 6 attacks x 3 defense modes = 18 runs
-# (docs/experiment_plan.md §4, Decision 22). Paths are relative to the
-# repository root.
+# The deterministic core matrix (docs/experiment_plan.md §4, Decision 22):
+# 6 attacks and 16 normal-use development cases (Decision 23), each in
+# 3 defense modes = 66 runs. Paths are relative to the repository root.
 matrix_id: fake_core_v1
 backend: fake
 fake_script_dir: experiments/fake_scripts
@@ -28,6 +28,15 @@ control_sets:
     - synthetic_secret_scanner_v1
     - synthetic_secret_redactor_v1
 
+# The attacks each detector is built for. Only their runs count as the
+# detector's positives in detectors.csv (Decision 23, amendment); every
+# verdict still appears in verdicts.csv.
+detector_targets:
+  prompt_injection_rules_v1: [AC-PI1a, AC-PI2a, AC-CL2a]  # Decisions 16, 18, 21
+  session_binding_validator_v1: [AC-SH1a]  # Decision 17
+  replay_validator_v1: [AC-SH3a]  # Decisions 17, 19
+  synthetic_secret_scanner_v1: [AC-CL1a]  # Decision 20
+
 scenarios:
   - file: scenarios/attacks/ac_pi1a.yaml
     control_set: prompt_injection
@@ -41,4 +50,40 @@ scenarios:
     control_set: secret
   # AC-CL2a is blocked by the prompt-injection controls (Decision 21).
   - file: scenarios/attacks/ac_cl2a.yaml
+    control_set: prompt_injection
+
+  # Normal-use development corpus (Decision 23). Each case runs with the
+  # controls of its family; the final holdout has its own matrix file.
+  - file: scenarios/benign/pi_benign_dev_educational_quote.yaml
+    control_set: prompt_injection
+  - file: scenarios/benign/pi_benign_dev_own_profile.yaml
+    control_set: prompt_injection
+  - file: scenarios/benign/pi_benign_dev_policy_question.yaml
+    control_set: prompt_injection
+  - file: scenarios/benign/pi_benign_dev_tool_mentioned.yaml
+    control_set: prompt_injection
+  - file: scenarios/benign/pi_benign_dev_ordinary_summary.yaml
+    control_set: prompt_injection
+  - file: scenarios/benign/session_benign_dev_owner_own_session.yaml
+    control_set: session
+  - file: scenarios/benign/session_benign_dev_two_users_own_sessions.yaml
+    control_set: session
+  - file: scenarios/benign/session_benign_dev_distinct_nonces.yaml
+    control_set: session
+  - file: scenarios/benign/session_benign_dev_retry_with_new_nonce.yaml
+    control_set: session
+  - file: scenarios/benign/session_benign_dev_same_nonce_two_sessions.yaml
+    control_set: session
+  - file: scenarios/benign/secret_benign_dev_unregistered_lookalike.yaml
+    control_set: secret
+  - file: scenarios/benign/secret_benign_dev_own_data_summary.yaml
+    control_set: secret
+  - file: scenarios/benign/secret_benign_dev_redaction_placeholder.yaml
+    control_set: secret
+  - file: scenarios/benign/secret_benign_dev_authorized_ordinary_search.yaml
+    control_set: secret
+  - file: scenarios/benign/secret_benign_dev_artifact_without_secret.yaml
+    control_set: secret
+  # The sink case runs under the AC-CL2a controls (Decision 23).
+  - file: scenarios/benign/secret_benign_dev_authorized_sink_public_text.yaml
     control_set: prompt_injection

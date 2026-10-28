@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from harness.experiment import (
+    DETECTOR_COLUMNS,
     SUMMARY_COLUMNS,
     VERDICT_COLUMNS,
     BatchOutcome,
@@ -22,7 +23,14 @@ from harness.experiment import (
 MATRIX_FILE = Path("experiments/matrix_fake.yaml")
 STARTED_AT = datetime(2026, 10, 28, 15, 30, 0, tzinfo=UTC)
 RUN_FILES = ["config.json", "environment.json", "events.jsonl", "result.json"]
-BATCH_FILES = ["batch.json", "runs", "summary.csv", "summary.json", "verdicts.csv"]
+BATCH_FILES = [
+    "batch.json",
+    "detectors.csv",
+    "runs",
+    "summary.csv",
+    "summary.json",
+    "verdicts.csv",
+]
 
 # The synthetic-secret formats (Decisions 4 and 14).
 SECRET_FORMAT = re.compile(r"(?:FAKE_SECRET|CANARY)_[A-Za-z0-9]")
@@ -69,11 +77,11 @@ def test_fake_batch_writes_runs_and_summaries(tmp_path: Path) -> None:
     batch_dir = tmp_path / "20261028T153000Z"
     assert outcome.batch_dir == batch_dir
     assert sorted(path.name for path in batch_dir.iterdir()) == BATCH_FILES
-    assert outcome.status_counts == {"completed": 18, "error": 0, "inconclusive": 0}
+    assert outcome.status_counts == {"completed": 66, "error": 0, "inconclusive": 0}
     assert outcome.has_errors is False
 
     run_dirs = sorted((batch_dir / "runs").iterdir())
-    assert len(run_dirs) == 18
+    assert len(run_dirs) == 66
     for run_dir in run_dirs:
         assert sorted(path.name for path in run_dir.iterdir()) == RUN_FILES
 
@@ -82,11 +90,12 @@ def test_fake_batch_writes_runs_and_summaries(tmp_path: Path) -> None:
     assert batch["git_dirty"] is False
     assert batch["started_at_utc"] == "2026-10-28T15:30:00Z"
     assert batch["finished_at_utc"] is not None
-    assert batch["planned_runs"] == 18
+    assert batch["planned_runs"] == 66
     assert batch["matrix"]["matrix_id"] == "fake_core_v1"
 
     summary_rows = read_csv(batch_dir / "summary.csv")
-    assert len(summary_rows) == 18
+    # 22 scenarios in 3 modes; each normal-use case is its own cell.
+    assert len(summary_rows) == 66
     assert list(summary_rows[0]) == list(SUMMARY_COLUMNS)
 
     by_cell = {(row["cell_id"], row["defense_mode"]): row for row in summary_rows}
@@ -98,19 +107,35 @@ def test_fake_batch_writes_runs_and_summaries(tmp_path: Path) -> None:
     )
 
     summary = read_json(batch_dir / "summary.json")
-    assert len(summary["cells"]) == 18
+    assert len(summary["cells"]) == 66
     assert summary["cells"][0]["attack_success_rate"] == {
         "count": 1,
         "total": 1,
         "value": 1.0,
     }
 
+    detector_rows = read_csv(batch_dir / "detectors.csv")
+    assert list(detector_rows[0]) == list(DETECTOR_COLUMNS)
+    assert len(summary["detectors"]) == len(detector_rows)
+    # Every development row of every detector: no false positives.
+    development = [r for r in detector_rows if r["normal_use_split"] == "development"]
+    assert development
+    assert {r["false_positives"] for r in development} == {"0"}
+    # Each detector is scored on the attacks it targets (Decision 23).
+    by_detector = {(r["detector_id"], r["defense_mode"]): r for r in detector_rows}
+    for detector_id in ("session_binding_validator_v1", "replay_validator_v1"):
+        row = by_detector[(detector_id, "detect")]
+        assert (row["true_positives"], row["false_negatives"]) == ("1", "0")
+    assert by_detector[("prompt_injection_rules_v1", "detect")]["target_attacks"] == (
+        "AC-PI1a AC-PI2a AC-CL2a"
+    )
+
     verdict_rows = read_csv(batch_dir / "verdicts.csv")
     assert verdict_rows
     assert list(verdict_rows[0]) == list(VERDICT_COLUMNS)
 
-    assert len(progress) == 18
-    assert progress[0] == "[1/18] ac_pi1a_baseline__none__seed0__rep1: completed"
+    assert len(progress) == 66
+    assert progress[0] == "[1/66] ac_pi1a_baseline__none__seed0__rep1: completed"
 
 
 def test_no_synthetic_secret_appears_anywhere_in_the_batch(tmp_path: Path) -> None:
@@ -130,8 +155,9 @@ def test_failed_runs_do_not_stop_the_batch(tmp_path: Path) -> None:
 
     outcome = run(matrix, tmp_path / "results")
 
-    # The 12 model runs have no script; the 6 protocol runs need none.
-    assert outcome.status_counts == {"completed": 6, "error": 12, "inconclusive": 0}
+    # Without scripts, every model run fails: 4 attacks and 11 normal-use
+    # cases, in 3 modes. SH1a, SH3a, and the 5 session cases need no model.
+    assert outcome.status_counts == {"completed": 21, "error": 45, "inconclusive": 0}
     assert outcome.has_errors is True
 
     rows = read_csv(outcome.batch_dir / "summary.csv")
@@ -160,11 +186,13 @@ def test_run_all_command_runs_the_fake_matrix(tmp_path: Path) -> None:
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "18 runs, 18 completed, 0 error, 0 inconclusive" in completed.stdout
+    assert "66 runs, 66 completed, 0 error, 0 inconclusive" in completed.stdout
     assert SECRET_FORMAT.search(completed.stdout + completed.stderr) is None
 
-    assert "Plots: 4 written" in completed.stdout
+    # With normal-use cells, the false-positive plot is drawn too.
+    assert "Plots: 5 written" in completed.stdout
 
     (batch_dir,) = tmp_path.iterdir()
     assert (batch_dir / "summary.csv").is_file()
-    assert len(list((batch_dir / "plots").glob("*.png"))) == 4
+    assert len(list((batch_dir / "plots").glob("*.png"))) == 5
+    assert (batch_dir / "plots" / "false_positive_rate_development.png").is_file()
